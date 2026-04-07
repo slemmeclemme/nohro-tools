@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nohro Compliance Tools</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  background: #f4f6f9;
+  color: #1a1a2e;
+  font-size: 15px;
+}
+
+/* ── HEADER ──────────────────────────────────────────────── */
+header {
+  background: #1a2e4a;
+  color: white;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+header h1 { font-size: 17px; font-weight: 700; }
+header p  { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+.lang { display: flex; background: rgba(255,255,255,0.12); border-radius: 20px; padding: 3px; }
+.lang button {
+  border: none; background: transparent; color: rgba(255,255,255,0.65);
+  font-size: 13px; font-weight: 600; padding: 5px 13px; border-radius: 16px; cursor: pointer;
+}
+.lang button.on { background: white; color: #1a2e4a; }
+
+/* ── TAB NAV ─────────────────────────────────────────────── */
+.tabs {
+  background: #1a2e4a;
+  padding: 0 16px;
+  display: flex;
+  gap: 0;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.tab-btn {
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.5);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+.tab-btn:hover { color: rgba(255,255,255,0.85); }
+.tab-btn.active { color: white; border-bottom-color: #3b82f6; }
+
+/* ── MAIN LAYOUT ─────────────────────────────────────────── */
+main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
+
+/* ── UPLOAD ZONE ─────────────────────────────────────────── */
+.zone {
+  background: white;
+  border: 2px dashed #d1d5db;
+  border-radius: 14px;
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 12px;
+}
+.zone:hover, .zone.over { border-color: #2563eb; background: #eff6ff; }
+.zone .icon { font-size: 40px; margin-bottom: 10px; }
+.zone .main-text { font-size: 15px; font-weight: 600; color: #374151; }
+.zone .sub-text  { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+.zone.done { border-style: solid; border-color: #86efac; background: #f0fdf4; }
+.zone.done .main-text { color: #15803d; }
+
+/* ── IMAGES ──────────────────────────────────────────────── */
+.img-previews { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.img-thumb { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; border: 1.5px solid #e5e7eb; }
+
+/* ── CHECK BTN ───────────────────────────────────────────── */
+.check-btn {
+  width: 100%; padding: 15px; border: none; border-radius: 12px;
+  background: #2563eb; color: white; font-size: 16px; font-weight: 700;
+  cursor: pointer; margin-top: 8px; transition: background 0.15s, transform 0.1s;
+  font-family: inherit;
+}
+.check-btn:hover { background: #1d4ed8; transform: translateY(-1px); }
+.check-btn:active { transform: translateY(0); }
+.check-btn:disabled { background: #94a3b8; cursor: default; transform: none; }
+
+/* ── RESULTS ─────────────────────────────────────────────── */
+.results-panel { margin-top: 20px; display: none; }
+
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.sum-card { border-radius: 10px; padding: 14px 8px; text-align: center; }
+.sum-card .num { font-size: 30px; font-weight: 800; }
+.sum-card .lbl { font-size: 11px; font-weight: 700; margin-top: 2px; }
+.err-card  { background: #fef2f2; border: 1.5px solid #fca5a5; }
+.err-card  .num { color: #dc2626; } .err-card  .lbl { color: #991b1b; }
+.warn-card { background: #fffbeb; border: 1.5px solid #fcd34d; }
+.warn-card .num { color: #d97706; } .warn-card .lbl { color: #92400e; }
+.ok-card   { background: #f0fdf4; border: 1.5px solid #86efac; }
+.ok-card   .num { color: #16a34a; } .ok-card   .lbl { color: #15803d; }
+
+/* ── ROW CARDS (shared by both tabs) ─────────────────────── */
+.issues { display: flex; flex-direction: column; gap: 10px; }
+.row-card {
+  background: white;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.row-card.has-error { border-color: #fca5a5; }
+.row-card.has-warn  { border-color: #fcd34d; }
+.row-card-header {
+  font-size: 12px; font-weight: 700; color: #374151;
+  background: #f8fafc; padding: 7px 13px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.row-card.has-error .row-card-header { background: #fef2f2; color: #991b1b; }
+.row-card.has-warn  .row-card-header { background: #fffbeb; color: #92400e; }
+.row-issue {
+  display: flex; gap: 10px; padding: 9px 13px;
+  font-size: 13px; line-height: 1.4; align-items: flex-start;
+  border-bottom: 1px solid #f3f4f6;
+}
+.row-issue:last-child { border-bottom: none; }
+.row-issue.e  { background: #fef2f2; }
+.row-issue.w  { background: #fffbeb; }
+.row-issue.ai { background: #fffbeb; }
+.issue-dot { font-size: 14px; flex-shrink: 0; }
+
+/* ── IMAGE REVIEW ────────────────────────────────────────── */
+.img-review { margin-top: 16px; }
+.img-review h3 { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.img-card { border: 1.5px solid #e5e7eb; border-radius: 10px; overflow: hidden; transition: border-color 0.2s; }
+.img-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.img-card label { display: flex; align-items: center; gap: 6px; padding: 8px 10px; font-size: 12px; background: #f8fafc; cursor: pointer; }
+.img-card input[type=checkbox] { accent-color: #16a34a; width: 15px; height: 15px; }
+.img-card.verified { border-color: #86efac; }
+
+/* ── DEBUG PANEL ─────────────────────────────────────────── */
+.debug-panel {
+  display: none; font-size: 11px; color: #6b7280; margin-top: 6px;
+  padding: 8px 12px; background: #f8fafc; border-radius: 8px; line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 id="ht">Nohro Compliance Tools</h1>
+    <p id="hs">china.nohro.dk — Upload files for verification</p>
+  </div>
+  <div class="lang">
+    <button class="on" onclick="setLang('en')">EN</button>
+    <button onclick="setLang('zh')">中文</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tab-btn-bom" onclick="showTab('bom')" id="tbom">🔬 BOM/BOS Check</button>
+  <button class="tab-btn"        id="tab-btn-pw"  onclick="showTab('pw')"  id="tpw">📦 Packaging Paperwork</button>
+</div>
+
+<!-- ══════════════ TAB 1: BOM/BOS ══════════════ -->
+<div id="tab-bom">
+<main>
+  <div class="zone" id="fileZone" onclick="document.getElementById('fileIn').click()">
+    <div class="icon">📊</div>
+    <div class="main-text" id="fz-main">Upload BOM/BOS file</div>
+    <div class="sub-text"  id="fz-sub">.xlsx or .xls — tap or drag file here</div>
+  </div>
+  <input type="file" id="fileIn" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadFile(this.files[0])">
+  <div id="debugInfo" class="debug-panel"></div>
+
+  <div class="zone" id="imgZone" onclick="document.getElementById('imgIn').click()">
+    <div class="icon">📷</div>
+    <div class="main-text" id="iz-main">Upload product photos</div>
+    <div class="sub-text"  id="iz-sub">Optional — used for visual verification</div>
+    <div class="img-previews" id="imgPreviews"></div>
+  </div>
+  <input type="file" id="imgIn" accept="image/*" multiple style="display:none" onchange="loadImages(this.files)">
+
+  <button class="check-btn" id="checkBtn" onclick="runCheck()">
+    <span id="btnTxt">🔍 Run Check</span>
+  </button>
+
+  <div id="bomResults" class="results-panel">
+    <div class="summary">
+      <div class="sum-card err-card"><div class="num" id="nErr">0</div><div class="lbl" id="lErr">Errors</div></div>
+      <div class="sum-card warn-card"><div class="num" id="nWarn">0</div><div class="lbl" id="lWarn">Warnings</div></div>
+      <div class="sum-card ok-card"><div class="num" id="nOk">0</div><div class="lbl" id="lOk">Rows</div></div>
+    </div>
+    <div class="issues" id="issueList"></div>
+    <div class="img-review" id="imgReview" style="display:none">
+      <h3 id="irTitle">Image Review</h3>
+      <div class="img-grid" id="imgGrid"></div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- ══════════════ TAB 2: PACKAGING PAPERWORK ══════════════ -->
+<div id="tab-pw" style="display:none">
+<main>
+  <div class="zone" id="pwFileZone" onclick="document.getElementById('pwFileIn').click()">
+    <div class="icon">📦</div>
+    <div class="main-text" id="pwfz-main">Upload Packaging Paperwork file</div>
+    <div class="sub-text"  id="pwfz-sub">.xlsx — Packaging_Paperwork_Template</div>
+  </div>
+  <input type="file" id="pwFileIn" accept=".xlsx,.xls" style="display:none" onchange="loadPWFile(this.files[0])">
+  <div id="pwDebugInfo" class="debug-panel"></div>
+
+  <button class="check-btn" id="pwCheckBtn" onclick="runPWCheck()">
+    <span id="pwBtnTxt">🔍 Run Check</span>
+  </button>
+
+  <div id="pwResults" class="results-panel">
+    <div class="summary">
+      <div class="sum-card err-card"><div class="num" id="pwNErr">0</div><div class="lbl" id="pwLErr">Errors</div></div>
+      <div class="sum-card warn-card"><div class="num" id="pwNWarn">0</div><div class="lbl" id="pwLWarn">Warnings</div></div>
+      <div class="sum-card ok-card"><div class="num" id="pwNOk">0</div><div class="lbl" id="pwLOk">Items</div></div>
+    </div>
+    <div class="issues" id="pwIssueList"></div>
+  </div>
+</main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// SHARED
+// ══════════════════════════════════════════════════
+const _K = 'sk-ant-api03-Kh7EoPpis5aUAfyWyLKH7ZmHj05dK' +
+           'lwj9yqxpIr-7N_9OeqPQxkmewEjH5XhxNu6Os6JBWW' +
+           'KhVfYyAqorH-9Hg-3g-ZQgAA';
+
+let lang = 'en';
+
+const L = {
+  en: {
+    ht: 'Nohro Compliance Tools',
+    hs: 'china.nohro.dk — Upload files for verification',
+    'fz-main': 'Upload BOM/BOS file',
+    'fz-sub': '.xlsx or .xls — tap or drag file here',
+    'iz-main': 'Upload product photos',
+    'iz-sub': 'Optional — used for visual verification',
+    'pwfz-main': 'Upload Packaging Paperwork file',
+    'pwfz-sub': '.xlsx — Packaging_Paperwork_Template',
+    btnTxt: '🔍 Run Check',
+    pwBtnTxt: '🔍 Run Check',
+    lErr: 'Errors', lWarn: 'Warnings', lOk: 'Rows',
+    pwLErr: 'Errors', pwLWarn: 'Warnings', pwLOk: 'Items',
+    irTitle: 'Image Review — does the photo match the BOM?',
+    imgCheck: 'Matches BOM ✓',
+    noFile: 'No file loaded — please upload a BOM/BOS Excel file',
+    pwNoFile: 'No file loaded — please upload a Packaging Paperwork Excel file',
+    missingComp: 'Missing component / part name',
+    missingMat: 'Missing material type',
+    missingSub: 'Missing substance name',
+    missingCAS: 'Missing CAS number',
+    badCAS: 'Invalid CAS format — "{v}"',
+    missingConc: 'Missing concentration (%)',
+    over100: 'Concentration {v}% exceeds 100%',
+    concNot100: 'Concentrations sum to {v}% — must add up to 100%',
+    concNoPercent: 'Concentration column lists materials without % values — add percentages summing to 100%',
+    casCountMismatch: '{k} substance(s) in concentration column, but {l} CAS number(s) — counts must match',
+    missingREACH: 'REACH/SVHC status not filled',
+    missingDecl: 'No test certificate reference noted',
+    genericDecl: 'Test cert reference looks incomplete — add cert number and date',
+    svhcHit: '{sub} (CAS {cas}) is a substance of concern — check concentration and SVHC status',
+    blackPlastic: 'Black plastic detected — PAH test likely required (REACH Annex XVII)',
+    noImg: 'No photos uploaded — visual check not possible',
+    fzDone: 'File loaded: {n} rows',
+    pwFzDone: 'File loaded: {n} rows, {i} items',
+    izDone: '{n} photo(s) ready',
+    // Paperwork strings
+    pwMissingComponent: 'Missing packaging component name',
+    pwMissingCompType: 'Missing component type',
+    pwMissingRecycCode: 'Missing recycling code',
+    pwBadRecycCode: 'Invalid recycling code "{v}" — check Recycling Code Reference sheet',
+    pwMissingMatPct: 'Missing material %',
+    pwBadMatPct: 'Material % "{v}" is not a number',
+    pwPctNot100: '"{comp}": material percentages sum to {v}% — must be 100%',
+    pwMissingNW: 'Missing net weight (NW)',
+    pwMissingGW: 'Missing gross weight (GW)',
+    pwMissingProdSize: 'Missing product size',
+    pwMissingPkgSize: 'Missing packaging size',
+    pwMissingPVC: 'PVC field missing — must be Yes or No',
+    pwBadPVC: 'PVC field "{v}" should be "Yes" or "No"',
+    pwMissingBat: 'Batteries field missing — must be Yes or No',
+    pwBadBat: 'Batteries field "{v}" should be "Yes" or "No"',
+    pwMissingBatWt: 'Battery weight missing — required when Batteries = Yes',
+    pwMissingHS: 'Missing HS Code',
+    pwMissingCartons: 'Missing no. of cartons',
+    pwMissingCartonSize: 'Missing carton size',
+    pwMissingCartonGW: 'Missing carton gross weight (GW)',
+    pwMissingCartonNW: 'Missing carton net weight (NW)',
+    pwMissingCBM: 'Missing total CBM',
+    pwDarkPlastic: 'Dark/black plastic detected in "{comp}" — cannot be sorted by recycling facilities',
+  },
+  zh: {
+    ht: 'Nohro 合规工具',
+    hs: 'china.nohro.dk — 上传文件进行核查',
+    'fz-main': '上传BOM/BOS文件',
+    'fz-sub': '.xlsx或.xls — 点击或拖拽文件至此',
+    'iz-main': '上传产品图片',
+    'iz-sub': '可选 — 用于外观核查',
+    'pwfz-main': '上传包装文件',
+    'pwfz-sub': '.xlsx — Packaging_Paperwork_Template',
+    btnTxt: '🔍 开始检查',
+    pwBtnTxt: '🔍 开始检查',
+    lErr: '错误', lWarn: '警告', lOk: '行',
+    pwLErr: '错误', pwLWarn: '警告', pwLOk: '项目',
+    irTitle: '图片核查 — 图片与BOM是否一致？',
+    imgCheck: '与BOM一致 ✓',
+    noFile: '未加载文件 — 请上传BOM/BOS Excel文件',
+    pwNoFile: '未加载文件 — 请上传包装文件',
+    missingComp: '缺少组件/零件名称',
+    missingMat: '缺少材料类型',
+    missingSub: '缺少物质名称',
+    missingCAS: '缺少CAS编号',
+    badCAS: 'CAS格式无效 — "{v}"',
+    missingConc: '缺少浓度（%）',
+    over100: '浓度{v}%超过100%',
+    concNot100: '浓度合计{v}% — 必须等于100%',
+    concNoPercent: '浓度列中列出了物质名称但无百分比 — 请添加合计100%的百分比',
+    casCountMismatch: '浓度列有{k}种物质，但CAS列有{l}个编号 — 数量必须一致',
+    missingREACH: '未填写REACH/SVHC状态',
+    missingDecl: '未填写测试证书编号',
+    genericDecl: '测试证书参考似乎不完整 — 请添加证书编号和日期',
+    svhcHit: '{sub}（CAS {cas}）为关注物质 — 请核查浓度及SVHC状态',
+    blackPlastic: '检测到黑色塑料 — 可能需要PAH测试（REACH附件XVII）',
+    noImg: '未上传图片 — 无法进行外观核查',
+    fzDone: '文件已加载：{n}行数据',
+    pwFzDone: '文件已加载：{n}行，{i}个项目',
+    izDone: '已准备{n}张图片',
+    pwMissingComponent: '缺少包装组件名称',
+    pwMissingCompType: '缺少组件类型',
+    pwMissingRecycCode: '缺少回收代码',
+    pwBadRecycCode: '回收代码"{v}"无效 — 请参考回收代码参考表',
+    pwMissingMatPct: '缺少材料百分比',
+    pwBadMatPct: '材料百分比"{v}"不是数字',
+    pwPctNot100: '"{comp}"：材料百分比合计{v}% — 必须等于100%',
+    pwMissingNW: '缺少净重（NW）',
+    pwMissingGW: '缺少毛重（GW）',
+    pwMissingProdSize: '缺少产品尺寸',
+    pwMissingPkgSize: '缺少包装尺寸',
+    pwMissingPVC: '缺少PVC字段 — 必须填写是或否',
+    pwBadPVC: 'PVC字段"{v}"应为"Yes"或"No"',
+    pwMissingBat: '缺少电池字段 — 必须填写是或否',
+    pwBadBat: '电池字段"{v}"应为"Yes"或"No"',
+    pwMissingBatWt: '缺少电池重量 — 当电池=是时必填',
+    pwMissingHS: '缺少HS编码',
+    pwMissingCartons: '缺少箱数',
+    pwMissingCartonSize: '缺少纸箱尺寸',
+    pwMissingCartonGW: '缺少纸箱毛重',
+    pwMissingCartonNW: '缺少纸箱净重',
+    pwMissingCBM: '缺少总CBM',
+    pwDarkPlastic: '"{comp}"中检测到深色/黑色塑料 — 无法被回收设施分类',
+  }
+};
+
+function s(k, vars) {
+  let str = (L[lang][k] || L.en[k] || k);
+  if (vars) str = str.replace(/\{(\w+)\}/g, (_, x) => vars[x] ?? `{${x}}`);
+  return str;
+}
+
+function setLang(l) {
+  lang = l;
+  document.querySelectorAll('.lang button').forEach((b,i) => b.classList.toggle('on', (i===0&&l==='en')||(i===1&&l==='zh')));
+  document.querySelector('html').lang = l === 'zh' ? 'zh-CN' : 'en';
+  ['ht','hs','fz-main','fz-sub','iz-main','iz-sub','pwfz-main','pwfz-sub','btnTxt','pwBtnTxt',
+   'lErr','lWarn','lOk','pwLErr','pwLWarn','pwLOk','irTitle'].forEach(k => {
+    const el = document.getElementById(k);
+    if (el) el.textContent = s(k);
+  });
+  if (rows.length) updateFileZone();
+  if (imgs.length)  updateImgZone();
+  if (pwRows.length) updatePWFileZone();
+}
+
+function showTab(t) {
+  document.getElementById('tab-bom').style.display = t === 'bom' ? '' : 'none';
+  document.getElementById('tab-pw').style.display  = t === 'pw'  ? '' : 'none';
+  document.getElementById('tab-btn-bom').classList.toggle('active', t === 'bom');
+  document.getElementById('tab-btn-pw').classList.toggle('active',  t === 'pw');
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function isBlankGlobal(v) {
+  if (!v) return true;
+  return /^[-–—?\/]+$/.test(v.trim()) || /^(n\/a|na|tbd|unknown|pending|none|nil)$/i.test(v.trim());
+}
+
+// Shared drag&drop
+function setupDrop(zoneId, handler) {
+  const z = document.getElementById(zoneId);
+  if (!z) return;
+  z.addEventListener('dragover', e => { e.preventDefault(); z.classList.add('over'); });
+  z.addEventListener('dragleave', () => z.classList.remove('over'));
+  z.addEventListener('drop', e => { e.preventDefault(); z.classList.remove('over'); handler(e.dataTransfer.files); });
+}
+setupDrop('fileZone',   f => loadFile(f[0]));
+setupDrop('imgZone',    f => loadImages(f));
+setupDrop('pwFileZone', f => loadPWFile(f[0]));
+
+// Shared renderByRow — used by both tabs
+function renderByRow(items, listId, rowLookup, summaryIds, scrollToId) {
+  const errs  = items.filter(i => i.t === 'e').length;
+  const warns = items.filter(i => i.t === 'w' || i.t === 'ai').length;
+  document.getElementById(summaryIds.err).textContent  = errs;
+  document.getElementById(summaryIds.warn).textContent = warns;
+  document.getElementById(summaryIds.ok).textContent   = summaryIds.okVal;
+  document.getElementById(summaryIds.okLbl).textContent = summaryIds.okLabel;
+
+  const list = document.getElementById(listId);
+  list.innerHTML = '';
+
+  const rowItems = items.filter(i => i.grpKey);
+  const genItems = items.filter(i => !i.grpKey);
+
+  const groups = {};
+  rowItems.forEach(item => {
+    if (!groups[item.grpKey]) groups[item.grpKey] = [];
+    groups[item.grpKey].push(item);
+  });
+
+  const keys = Object.keys(groups).sort((a, b) => {
+    const na = parseInt(a), nb = parseInt(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a < b ? -1 : 1;
+  });
+
+  keys.forEach(key => {
+    const grpItems = groups[key];
+    const hasError = grpItems.some(i => i.t === 'e');
+    const label = rowLookup(key);
+
+    const card = document.createElement('div');
+    card.className = 'row-card' + (hasError ? ' has-error' : ' has-warn');
+
+    const hdr = document.createElement('div');
+    hdr.className = 'row-card-header';
+    hdr.textContent = label;
+    card.appendChild(hdr);
+
+    grpItems.forEach(item => {
+      const d = document.createElement('div');
+      d.className = `row-issue ${item.t}`;
+      const icon = item.t === 'e' ? '🔴' : '🟡';
+      const sub = item.rowRef ? `<span style="color:#9ca3af;font-size:11px"> · Row ${item.rowRef}</span>` : '';
+      d.innerHTML = `<span class="issue-dot">${icon}</span><div>${item.msg}${sub}</div>`;
+      card.appendChild(d);
+    });
+    list.appendChild(card);
+  });
+
+  if (genItems.length) {
+    const hasError = genItems.some(i => i.t === 'e');
+    const card = document.createElement('div');
+    card.className = 'row-card' + (hasError ? ' has-error' : ' has-warn');
+    const hdr = document.createElement('div');
+    hdr.className = 'row-card-header';
+    hdr.textContent = lang === 'zh' ? '⚠️ 总体' : '⚠️ General';
+    card.appendChild(hdr);
+    genItems.forEach(item => {
+      const d = document.createElement('div');
+      d.className = `row-issue ${item.t}`;
+      const icon = item.t === 'e' ? '🔴' : '🟡';
+      d.innerHTML = `<span class="issue-dot">${icon}</span><div>${item.msg}</div>`;
+      card.appendChild(d);
+    });
+    list.appendChild(card);
+  }
+
+  const res = document.getElementById(scrollToId);
+  res.style.display = 'block';
+  setTimeout(() => res.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
+
+// ══════════════════════════════════════════════════
+// TAB 1 — BOM/BOS CHECKER
+// ══════════════════════════════════════════════════
+let rows = [];
+let imgs = [];
+let lastDebug = null;
+
+const COL = {
+  product:   ['product name','产品名称'],
+  component: ['component','part name','part','item','assembly','组件','零件','部件'],
+  material:  ['sub-component','subcomponent','material type','material','材料类型','材料','材质','子组件'],
+  substance: ['raw material / ingredients','raw material/ingredients','raw material','ingredients','substance name','substance','chemical name','chemical','物质名称','物质','化学名称','化学品','原材料','成分'],
+  cas:       ['cas no.','cas no','cas number','cas#','cas','cas号','cas编号'],
+  conc:      ['concentration %','concentration (%)','concentration','conc.','conc','wt%','浓度','比例','含量','重量%'],
+  fn:        ['function','purpose','role','功能','用途'],
+  tests:     ['tests required','required tests','required test','tests','test','测试','所需测试','检测'],
+  reach:     ['reach / svhc status','reach/svhc status','reach/svhc','reach','svhc','合规'],
+  decl:      ['test cert.','test cert','test certificate','declaration','supplier declaration','声明','供应商声明','测试证书'],
+};
+
+const SKIP_PATTERNS = [
+  /bill of (materials|substances)/i,
+  /^⟵/, /^example rows/i, /^▸/, /^▼/,
+  /insert product photo/i, /^product image/i, /^totals/i,
+  /^\s*←/, /right-click.*insert picture/i, /enter your data below/i,
+];
+function isSkipRow(row) {
+  const first = String(row[0] || row[1] || '').replace(/\s+/g,' ').trim();
+  return SKIP_PATTERNS.some(p => p.test(first));
+}
+
+function detectCols(headers) {
+  const map = {};
+  headers.forEach((h, i) => {
+    const hn = String(h).toLowerCase().replace(/\s+/g,' ').trim();
+    for (const [field, aliases] of Object.entries(COL)) {
+      if (!map.hasOwnProperty(field) && aliases.some(a => hn.includes(a))) map[field] = i;
+    }
+  });
+  return map;
+}
+
+function loadFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      let sn = wb.SheetNames[0];
+      wb.SheetNames.forEach(n => { if (/bom|bos/i.test(n)) sn = n; });
+      const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+
+      let hi = -1;
+      for (const minCols of [4, 3, 2, 1]) {
+        for (let i = 0; i < Math.min(25, raw.length); i++) {
+          if (Object.keys(detectCols(raw[i].map(String))).length >= minCols) { hi = i; break; }
+        }
+        if (hi >= 0) break;
+      }
+      if (hi < 0) hi = 0;
+
+      const colMap = detectCols(raw[hi].map(String));
+      const detectedFields = Object.keys(colMap);
+      rows = [];
+      let lastComponent = '', lastProduct = '';
+      let rawScanned = 0, skipped = 0, filtered = 0;
+
+      for (let i = hi + 1; i < raw.length; i++) {
+        const r = raw[i];
+        if (!r || r.every(c => !c)) continue;
+        rawScanned++;
+        if (isSkipRow(r)) { skipped++; continue; }
+        const obj = { _row: i + 1 };
+        for (const [f, idx] of Object.entries(colMap)) obj[f] = String(r[idx] ?? '').trim();
+        if (!obj.component && lastComponent) obj.component = lastComponent;
+        else if (obj.component) lastComponent = obj.component;
+        if (!obj.product && lastProduct) obj.product = lastProduct;
+        else if (obj.product) lastProduct = obj.product;
+        const meaningful = [obj.substance, obj.material, obj.cas, obj.component, obj.conc].filter(v => v && v.trim().length > 1);
+        const minRequired = detectedFields.length >= 4 ? 2 : 1;
+        if (meaningful.length >= minRequired) rows.push(obj);
+        else filtered++;
+      }
+
+      lastDebug = {
+        sheet: sn, sheets: wb.SheetNames.join(', '),
+        headerRow: hi + 1,
+        headerText: (raw[hi] || []).map(String).filter(Boolean).slice(0,6).join(' | '),
+        colsFound: detectedFields.length,
+        colList: detectedFields.join(', ') || '— none —',
+        rawScanned, skipped, filtered, included: rows.length,
+      };
+      updateFileZone();
+    } catch(err) {
+      alert('Failed to parse file — please check the format\n\n' + err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function updateFileZone() {
+  const z = document.getElementById('fileZone');
+  z.classList.add('done');
+  document.getElementById('fz-main').textContent = s('fzDone', { n: rows.length });
+  document.getElementById('fz-sub').textContent = '';
+  const dbg = document.getElementById('debugInfo');
+  if (lastDebug) {
+    const d = lastDebug;
+    const rowColor = d.included > 0 ? '#15803d' : '#dc2626';
+    dbg.style.display = 'block';
+    dbg.innerHTML =
+      `<b>Sheet:</b> ${d.sheet} &nbsp;|&nbsp; <b>All sheets:</b> ${d.sheets}<br>` +
+      `<b>Header row:</b> ${d.headerRow} — <i>${d.headerText || '(empty)'}</i><br>` +
+      `<b>Columns (${d.colsFound}):</b> ${d.colList}<br>` +
+      `<b>Rows:</b> scanned ${d.rawScanned}, skipped ${d.skipped}, filtered ${d.filtered}, ` +
+      `<b style="color:${rowColor}">included ${d.included}</b>`;
+  }
+}
+
+function loadImages(files) {
+  Array.from(files).forEach(f => {
+    const r = new FileReader();
+    r.onload = e => { imgs.push(e.target.result); renderThumbs(); updateImgZone(); };
+    r.readAsDataURL(f);
+  });
+}
+function renderThumbs() {
+  const p = document.getElementById('imgPreviews');
+  p.innerHTML = '';
+  imgs.forEach(src => {
+    const img = document.createElement('img');
+    img.src = src; img.className = 'img-thumb';
+    p.appendChild(img);
+  });
+}
+function updateImgZone() {
+  document.getElementById('imgZone').classList.add('done');
+  document.getElementById('iz-main').textContent = s('izDone', { n: imgs.length });
+  document.getElementById('iz-sub').textContent = '';
+}
+
+const CONCERN = {
+  '117-81-7':'DEHP','85-68-7':'BBP','84-74-2':'DBP','84-61-7':'DCHP',
+  '7439-92-1':'Lead / 铅','7440-43-9':'Cadmium / 镉','7439-97-6':'Mercury / 汞',
+  '7440-02-0':'Nickel / 镍','50-00-0':'Formaldehyde / 甲醛',
+  '50-32-8':'Benzo[a]pyrene (PAH)','218-01-9':'Chrysene (PAH)',
+  '56-55-3':'Benz[a]anthracene (PAH)','192-97-2':'Benzo[e]pyrene (PAH)',
+};
+
+function validCAS(v) {
+  if (!v) return false;
+  const skip = ['n/a','mixture','polymer','various','proprietary','exempt','无','混合物','聚合物','不适用'];
+  if (skip.some(x => v.toLowerCase().includes(x))) return true;
+  const parts = v.split(/[\s,;\/]+/).filter(Boolean);
+  return parts.every(p => /^\d{2,7}-\d{2}-\d$/.test(p));
+}
+function casParts(v) {
+  if (!v) return [];
+  return v.split(/[\s,;\/]+/).filter(p => /^\d{2,7}-\d{2}-\d$/.test(p));
+}
+function countMaterials(v) {
+  if (!v) return 0;
+  const parts = v.split(/[\/,;\n\r]|\s{2,}/).map(p => p.trim()).filter(p => p.length > 1);
+  return parts.length || 1;
+}
+function parseConcField(v) {
+  if (!v || isBlankGlobal(v)) return null;
+  const hasRanges = /\d+\.?\d*\s*%\s*[-–]\s*\d+\.?\d*\s*%/.test(v);
+  const normalised = v.replace(/\d+\.?\d*\s*%\s*[-–]\s*\d+\.?\d*\s*%/g, 'RANGE%');
+  const substanceCount = (normalised.match(/%/g) || []).length;
+  if (substanceCount === 0) return { noPercent: true };
+  if (hasRanges) return { isRange: true, substanceCount };
+  const values = [...v.matchAll(/(\d+\.?\d*)\s*%/g)].map(m => parseFloat(m[1]));
+  const sum = Math.round(values.reduce((a, b) => a + b, 0) * 10) / 10;
+  return { isRange: false, sum, substanceCount };
+}
+
+async function runCheck() {
+  const btn = document.getElementById('checkBtn');
+  const btnTxt = document.getElementById('btnTxt');
+  if (!rows.length) { renderAll([{ t: 'e', msg: s('noFile') }]); return; }
+  btn.disabled = true;
+  btnTxt.textContent = lang === 'zh' ? '⏳ 分析中…' : '⏳ Analysing…';
+  document.getElementById('bomResults').style.display = 'none';
+
+  const issues = [];
+  function isBlank(v) { return isBlankGlobal(v); }
+
+  rows.forEach(row => {
+    const r = row._row;
+    const c = [row.product, row.component].filter(Boolean).join(' — ') || '?';
+    const gk = String(r); // group key = row number
+
+    if (!row.component) issues.push({ t: 'e', msg: s('missingComp'), grpKey: gk, rowRef: r });
+    if (!row.material)  issues.push({ t: 'e', msg: s('missingMat'),  grpKey: gk, rowRef: r });
+    if (!row.substance) issues.push({ t: 'e', msg: s('missingSub'),  grpKey: gk, rowRef: r });
+
+    if (isBlank(row.cas)) {
+      issues.push({ t: 'w', msg: s('missingCAS'), grpKey: gk, rowRef: r });
+    } else if (!validCAS(row.cas)) {
+      issues.push({ t: 'e', msg: s('badCAS', {v: row.cas}), grpKey: gk, rowRef: r });
+    } else {
+      casParts(row.cas).forEach(cas => {
+        const hit = CONCERN[cas];
+        if (hit) issues.push({ t: 'e', msg: s('svhcHit', {sub: hit, cas}), grpKey: gk, rowRef: r });
+      });
+    }
+
+    if (isBlank(row.conc)) {
+      issues.push({ t: 'w', msg: s('missingConc'), grpKey: gk, rowRef: r });
+    } else {
+      const conc = parseConcField(row.conc);
+      if (conc?.noPercent) {
+        issues.push({ t: 'w', msg: s('concNoPercent'), grpKey: gk, rowRef: r });
+        const casN = casParts(row.cas).length;
+        const matN = countMaterials(row.conc);
+        if (casN > 0 && matN > 1 && casN !== matN)
+          issues.push({ t: 'w', msg: s('casCountMismatch', {k: matN, l: casN}), grpKey: gk, rowRef: r });
+      } else if (conc && !conc.isRange) {
+        if (conc.sum > 105) issues.push({ t: 'e', msg: s('over100', {v: conc.sum}), grpKey: gk, rowRef: r });
+        else if (conc.sum < 95) issues.push({ t: 'w', msg: s('concNot100', {v: conc.sum}), grpKey: gk, rowRef: r });
+        const casN = casParts(row.cas).length;
+        if (casN > 0 && casN !== conc.substanceCount)
+          issues.push({ t: 'w', msg: s('casCountMismatch', {k: conc.substanceCount, l: casN}), grpKey: gk, rowRef: r });
+      } else if (conc?.isRange) {
+        const casN = casParts(row.cas).length;
+        if (casN > 0 && casN !== conc.substanceCount)
+          issues.push({ t: 'w', msg: s('casCountMismatch', {k: conc.substanceCount, l: casN}), grpKey: gk, rowRef: r });
+      }
+    }
+
+    if (isBlank(row.reach)) issues.push({ t: 'w', msg: s('missingREACH'), grpKey: gk, rowRef: r });
+    if (isBlank(row.decl))  issues.push({ t: 'w', msg: s('missingDecl'),  grpKey: gk, rowRef: r });
+    else if (/generic|general|通用|一般/i.test(row.decl))
+      issues.push({ t: 'w', msg: s('genericDecl'), grpKey: gk, rowRef: r });
+
+    if (/black|黑/i.test(c) && /abs|pp|pe|plastic|pvc|塑料/i.test(row.material || ''))
+      issues.push({ t: 'w', msg: s('blackPlastic'), grpKey: gk, rowRef: r });
+    if (/carbon.?black|炭黑/i.test(row.substance || ''))
+      issues.push({ t: 'w', msg: s('blackPlastic'), grpKey: gk, rowRef: r });
+  });
+
+  if (!imgs.length) issues.push({ t: 'w', msg: s('noImg') });
+
+  const aiItems = await fetchBOMAIItems();
+  renderAll([...issues, ...aiItems]);
+
+  btn.disabled = false;
+  btnTxt.textContent = s('btnTxt');
+}
+
+async function fetchBOMAIItems() {
+  let bomText = 'PRODUCT: ' + (rows[0]?.product || 'Unknown') + '\n\n';
+  rows.forEach(r => {
+    bomText += `Row ${r._row}:`;
+    if (r.component)  bomText += `  Component: ${r.component}`;
+    if (r.material)   bomText += `  | Material: ${r.material}`;
+    if (r.substance)  bomText += `  | Substance: ${r.substance}`;
+    if (r.conc)       bomText += `  | Conc: ${r.conc}`;
+    if (r.cas)        bomText += `  | CAS: ${r.cas}`;
+    bomText += '\n';
+  });
+
+  const content = [];
+  imgs.forEach(d => {
+    const m = d.match(/^data:([^;]+);base64,(.+)$/);
+    if (m) content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
+  });
+  content.push({ type: 'text', text:
+`You are a product compliance expert reviewing a BOM/BOS for EU compliance (REACH, RoHS, EN71, GPSR).
+${imgs.length > 0 ? 'Product photo(s) attached.' : 'No product photos.'}
+
+${bomText}
+
+Respond in ${lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.
+Only flag REAL issues — do not mention things that are fine.
+
+Output each issue on its own line using EXACTLY this format:
+Row N: [issue description]
+
+Use the row number from the data above. If an issue is general and not tied to a specific row, write:
+General: [issue description]
+
+One issue per line. No bullet points, no headers, no extra formatting.` });
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': _K,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
+        messages: [{ role: 'user', content }] })
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '';
+    const items = [];
+    text.split('\n').forEach(line => {
+      line = line.trim();
+      if (!line) return;
+      const rowMatch = line.match(/^Row\s+(\d+)\s*:\s*(.+)/i);
+      if (rowMatch) { items.push({ t: 'ai', grpKey: rowMatch[1], rowRef: parseInt(rowMatch[1],10), msg: esc(rowMatch[2]) }); return; }
+      const genMatch = line.match(/^General\s*:\s*(.+)/i);
+      if (genMatch) { items.push({ t: 'ai', msg: esc(genMatch[1]) }); return; }
+      if (line.length > 5) items.push({ t: 'ai', msg: esc(line) });
+    });
+    return items;
+  } catch(err) {
+    return [{ t: 'w', msg: `🤖 AI check failed: ${esc(err.message)}` }];
+  }
+}
+
+function renderAll(items) {
+  renderByRow(
+    items,
+    'issueList',
+    key => {
+      const rowData = rows.find(r => String(r._row) === key);
+      const label = rowData ? [rowData.product, rowData.component].filter(Boolean).join(' — ') : '';
+      return `Row ${key}${label ? '  ·  ' + label : ''}`;
+    },
+    { err: 'nErr', warn: 'nWarn', ok: 'nOk', okLbl: 'lOk',
+      okVal: rows.length, okLabel: lang === 'zh' ? '行' : 'Rows' },
+    'bomResults'
+  );
+
+  // Image review
+  const ir = document.getElementById('imgReview');
+  const grid = document.getElementById('imgGrid');
+  grid.innerHTML = '';
+  if (imgs.length) {
+    ir.style.display = 'block';
+    document.getElementById('irTitle').textContent = s('irTitle');
+    imgs.forEach((src, i) => {
+      const card = document.createElement('div');
+      card.className = 'img-card';
+      const id = `ic${i}`;
+      card.innerHTML = `<img src="${src}"><label><input type="checkbox" id="${id}" onchange="this.closest('.img-card').classList.toggle('verified',this.checked)">${s('imgCheck')}</label>`;
+      grid.appendChild(card);
+    });
+  } else {
+    ir.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════════════
+// TAB 2 — PACKAGING PAPERWORK CHECKER
+// ══════════════════════════════════════════════════
+let pwRows = [];
+let pwLastDebug = null;
+
+const PW_COL = {
+  itemno:     ['item\nno.','item no.','item no','item number','article no','article number','项目号','编号','item'],
+  nw:         ['net weight\n(nw)','net weight (nw)','net weight','nw','净重'],
+  gw:         ['gross weight\n(gw)','gross weight (gw)','gross weight','gw','毛重'],
+  prodsize:   ['product size\n(lxhxw cm)','product size','产品尺寸'],
+  pkgsize:    ['packaging size\n(lxhxw cm)','packaging size','包装尺寸'],
+  component:  ['packaging\ncomponent','packaging component','component','包装组件'],
+  comptype:   ['component\ntype','component type','组件类型'],
+  recyccode:  ['recycling\ncode','recycling code','recycling','回收代码','回收码'],
+  matpct:     ['material\n%','material %','material%','材料%','材料百分比'],
+  pvc:        ['pvc?\n(yes/no)','pvc?','pvc','pvc含量'],
+  batteries:  ['batteries?\n(yes/no)','batteries?','batteries','电池'],
+  batwt:      ['battery weight','bat. weight','bat weight','电池重量'],
+  hscode:     ['hs code','hs-code','hs','海关编码','hs编码'],
+  cartons:    ['no. of cartons','no. of\ncartons','cartons','箱数'],
+  cartonsize: ['carton size','carton\nsize','纸箱尺寸'],
+  cartongw:   ['carton gw','carton\ngw','纸箱毛重'],
+  cartonnw:   ['carton nw','carton\nnw','纸箱净重'],
+  cbm:        ['total cbm','cbm','总cbm'],
+};
+
+const VALID_RECYCLING_CODES = [
+  'pap 20','pap 21','pap 22',
+  'pet (1)','pet(1)',
+  'pe-hd (2)','pe-hd(2)',
+  'pe-ld (4)','pe-ld(4)',
+  'pp (5)','pp(5)',
+  'ps (6)','ps(6)',
+  'no label','no label required',
+];
+
+function isValidRecyclingCode(v) {
+  if (!v) return false;
+  return VALID_RECYCLING_CODES.includes(v.toLowerCase().trim());
+}
+
+const PW_SKIP = [
+  /^▸/i,
+  /example item/i,
+  /add rows as needed/i,
+  /your items/i,
+  /^\s*←/,
+];
+function isPWSkipRow(row) {
+  const first = String(row[0] || row[1] || '').replace(/\s+/g,' ').trim();
+  return PW_SKIP.some(p => p.test(first));
+}
+
+function detectPWCols(headers) {
+  const map = {};
+  headers.forEach((h, i) => {
+    const hn = String(h).toLowerCase().replace(/\n/g,' ').replace(/\s+/g,' ').trim();
+    for (const [field, aliases] of Object.entries(PW_COL)) {
+      if (!map.hasOwnProperty(field) && aliases.some(a => hn.includes(a))) map[field] = i;
+    }
+  });
+  return map;
+}
+
+function loadPWFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      let sn = wb.SheetNames[0];
+      wb.SheetNames.forEach(n => { if (/paper|packaging|pack/i.test(n)) sn = n; });
+      const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+
+      let hi = -1;
+      for (const minCols of [4, 3, 2, 1]) {
+        for (let i = 0; i < Math.min(25, raw.length); i++) {
+          if (Object.keys(detectPWCols(raw[i].map(String))).length >= minCols) { hi = i; break; }
+        }
+        if (hi >= 0) break;
+      }
+      if (hi < 0) hi = 0;
+
+      const colMap = detectPWCols(raw[hi].map(String));
+      const detectedFields = Object.keys(colMap);
+      pwRows = [];
+      let lastItemNo = '';
+      let rawScanned = 0, skipped = 0, filtered = 0;
+
+      for (let i = hi + 1; i < raw.length; i++) {
+        const r = raw[i];
+        if (!r || r.every(c => !c)) continue;
+        rawScanned++;
+        if (isPWSkipRow(r)) { skipped++; continue; }
+        const obj = { _row: i + 1 };
+        for (const [f, idx] of Object.entries(colMap)) obj[f] = String(r[idx] ?? '').trim();
+        if (!obj.itemno && lastItemNo) obj.itemno = lastItemNo;
+        else if (obj.itemno) lastItemNo = obj.itemno;
+        const meaningful = [obj.itemno, obj.component, obj.recyccode, obj.matpct].filter(v => v && v.trim().length > 0);
+        if (meaningful.length >= 1) { pwRows.push(obj); } else filtered++;
+      }
+
+      const itemNos = [...new Set(pwRows.map(r => r.itemno).filter(Boolean))];
+      pwLastDebug = {
+        sheet: sn, sheets: wb.SheetNames.join(', '),
+        headerRow: hi + 1,
+        headerText: (raw[hi] || []).map(String).filter(Boolean).slice(0,8).join(' | '),
+        colsFound: detectedFields.length,
+        colList: detectedFields.join(', ') || '— none —',
+        rawScanned, skipped, filtered,
+        included: pwRows.length, items: itemNos.length,
+      };
+      updatePWFileZone();
+    } catch(err) {
+      alert('Failed to parse packaging file — ' + err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function updatePWFileZone() {
+  const z = document.getElementById('pwFileZone');
+  z.classList.add('done');
+  const itemNos = [...new Set(pwRows.map(r => r.itemno).filter(Boolean))];
+  document.getElementById('pwfz-main').textContent = s('pwFzDone', { n: pwRows.length, i: itemNos.length });
+  document.getElementById('pwfz-sub').textContent = '';
+  const dbg = document.getElementById('pwDebugInfo');
+  if (pwLastDebug) {
+    const d = pwLastDebug;
+    const col = d.included > 0 ? '#15803d' : '#dc2626';
+    dbg.style.display = 'block';
+    dbg.innerHTML =
+      `<b>Sheet:</b> ${d.sheet} &nbsp;|&nbsp; <b>All sheets:</b> ${d.sheets}<br>` +
+      `<b>Header row:</b> ${d.headerRow} — <i>${d.headerText || '(empty)'}</i><br>` +
+      `<b>Columns (${d.colsFound}):</b> ${d.colList}<br>` +
+      `<b>Rows:</b> scanned ${d.rawScanned}, skipped ${d.skipped}, filtered ${d.filtered}, ` +
+      `<b style="color:${col}">included ${d.included}</b> across ${d.items} item(s)`;
+  }
+}
+
+async function runPWCheck() {
+  const btn = document.getElementById('pwCheckBtn');
+  const btnTxt = document.getElementById('pwBtnTxt');
+  if (!pwRows.length) { renderAllPW([{ t: 'e', msg: s('pwNoFile') }]); return; }
+  btn.disabled = true;
+  btnTxt.textContent = lang === 'zh' ? '⏳ 分析中…' : '⏳ Analysing…';
+  document.getElementById('pwResults').style.display = 'none';
+
+  const issues = [];
+
+  // Group rows by item number
+  const itemGroups = {};
+  pwRows.forEach(row => {
+    const k = row.itemno || '_unknown';
+    if (!itemGroups[k]) itemGroups[k] = [];
+    itemGroups[k].push(row);
+  });
+
+  // ── Per-row checks ──
+  pwRows.forEach(row => {
+    const r = row._row;
+    const itemKey = row.itemno || '_unknown';
+
+    if (!row.component || row.component.trim() === '')
+      issues.push({ t: 'e', msg: s('pwMissingComponent'), grpKey: itemKey, rowRef: r });
+
+    if (!row.comptype || row.comptype.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingCompType'), grpKey: itemKey, rowRef: r });
+
+    if (!row.recyccode || row.recyccode.trim() === '') {
+      issues.push({ t: 'e', msg: s('pwMissingRecycCode'), grpKey: itemKey, rowRef: r });
+    } else if (!isValidRecyclingCode(row.recyccode)) {
+      issues.push({ t: 'e', msg: s('pwBadRecycCode', {v: row.recyccode}), grpKey: itemKey, rowRef: r });
+    } else {
+      // Dark plastic check
+      const isDarkPlastic = /black|dark|noir|黑|深色/i.test(row.component || '');
+      const isPlasticCode = /pet|pe-hd|pe-ld|pp|ps/i.test(row.recyccode || '');
+      if (isDarkPlastic && isPlasticCode)
+        issues.push({ t: 'w', msg: s('pwDarkPlastic', {comp: row.component}), grpKey: itemKey, rowRef: r });
+    }
+
+    if (!row.matpct || row.matpct.trim() === '') {
+      issues.push({ t: 'e', msg: s('pwMissingMatPct'), grpKey: itemKey, rowRef: r });
+    } else {
+      const pct = parseFloat(row.matpct);
+      if (isNaN(pct))
+        issues.push({ t: 'e', msg: s('pwBadMatPct', {v: row.matpct}), grpKey: itemKey, rowRef: r });
+    }
+  });
+
+  // ── Per-item checks ──
+  for (const [itemKey, rws] of Object.entries(itemGroups)) {
+    const firstRow = rws[0];
+    const r = firstRow._row;
+
+    if (!firstRow.nw || firstRow.nw.trim() === '')
+      issues.push({ t: 'e', msg: s('pwMissingNW'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.gw || firstRow.gw.trim() === '')
+      issues.push({ t: 'e', msg: s('pwMissingGW'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.prodsize || firstRow.prodsize.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingProdSize'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.pkgsize || firstRow.pkgsize.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingPkgSize'), grpKey: itemKey, rowRef: r });
+
+    // PVC
+    if (!firstRow.pvc || firstRow.pvc.trim() === '') {
+      issues.push({ t: 'w', msg: s('pwMissingPVC'), grpKey: itemKey, rowRef: r });
+    } else if (!/^(yes|no|是|否)/i.test(firstRow.pvc.trim())) {
+      issues.push({ t: 'w', msg: s('pwBadPVC', {v: firstRow.pvc}), grpKey: itemKey, rowRef: r });
+    }
+
+    // Batteries
+    if (!firstRow.batteries || firstRow.batteries.trim() === '') {
+      issues.push({ t: 'w', msg: s('pwMissingBat'), grpKey: itemKey, rowRef: r });
+    } else if (!/^(yes|no|是|否)/i.test(firstRow.batteries.trim())) {
+      issues.push({ t: 'w', msg: s('pwBadBat', {v: firstRow.batteries}), grpKey: itemKey, rowRef: r });
+    } else if (/^(yes|是)/i.test(firstRow.batteries.trim()) && (!firstRow.batwt || firstRow.batwt.trim() === '')) {
+      issues.push({ t: 'e', msg: s('pwMissingBatWt'), grpKey: itemKey, rowRef: r });
+    }
+
+    if (!firstRow.hscode || firstRow.hscode.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingHS'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.cartons || firstRow.cartons.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingCartons'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.cartonsize || firstRow.cartonsize.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingCartonSize'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.cartongw || firstRow.cartongw.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingCartonGW'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.cartonnw || firstRow.cartonnw.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingCartonNW'), grpKey: itemKey, rowRef: r });
+    if (!firstRow.cbm || firstRow.cbm.trim() === '')
+      issues.push({ t: 'w', msg: s('pwMissingCBM'), grpKey: itemKey, rowRef: r });
+
+    // Material % per packaging component must sum to 100%
+    const compGroups = {};
+    rws.forEach(row => {
+      if (!row.component) return;
+      const k = row.component.toLowerCase().trim();
+      if (!compGroups[k]) compGroups[k] = [];
+      compGroups[k].push(row);
+    });
+    for (const [, compRows] of Object.entries(compGroups)) {
+      const pcts = compRows.map(cr => parseFloat(cr.matpct)).filter(p => !isNaN(p));
+      if (pcts.length > 0) {
+        const sum = Math.round(pcts.reduce((a,b) => a+b, 0) * 10) / 10;
+        if (sum < 99 || sum > 101) {
+          issues.push({
+            t: 'e',
+            msg: s('pwPctNot100', { comp: compRows[0].component, v: sum }),
+            grpKey: itemKey,
+            rowRef: compRows[0]._row,
+          });
+        }
+      }
+    }
+  }
+
+  const aiItems = await fetchPWAIItems(itemGroups);
+  renderAllPW([...issues, ...aiItems]);
+
+  btn.disabled = false;
+  btnTxt.textContent = s('pwBtnTxt');
+}
+
+async function fetchPWAIItems(itemGroups) {
+  let pwText = 'PACKAGING PAPERWORK:\n\n';
+  pwRows.forEach(r => {
+    pwText += `Row ${r._row}: Item ${r.itemno || '?'}`;
+    if (r.component)  pwText += ` | Component: ${r.component}`;
+    if (r.comptype)   pwText += ` | Type: ${r.comptype}`;
+    if (r.recyccode)  pwText += ` | Recycling: ${r.recyccode}`;
+    if (r.matpct)     pwText += ` | Material%: ${r.matpct}`;
+    if (r.pvc)        pwText += ` | PVC: ${r.pvc}`;
+    if (r.batteries)  pwText += ` | Batteries: ${r.batteries}`;
+    pwText += '\n';
+  });
+
+  const content = [{ type: 'text', text:
+`You are a packaging compliance expert reviewing a packaging paperwork form for EU market products.
+
+${pwText}
+
+Respond in ${lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.
+Check for: incorrect recycling codes for the stated materials, missing packaging components that are typically required, suspicious or illogical entries, PVC/battery concerns, and any EU packaging regulation issues.
+Only flag REAL issues — do not mention things that are fine.
+
+Output each issue on its own line using EXACTLY this format:
+Item XXXXX: [issue description]
+
+Use the item number from the data. If an issue is general and not tied to a specific item, write:
+General: [issue description]
+
+One issue per line. No bullet points, no headers, no extra formatting.` }];
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': _K,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
+        messages: [{ role: 'user', content }] })
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '';
+    const items = [];
+    text.split('\n').forEach(line => {
+      line = line.trim();
+      if (!line) return;
+      const itemMatch = line.match(/^Item\s+(\S+)\s*:\s*(.+)/i);
+      if (itemMatch) { items.push({ t: 'ai', grpKey: itemMatch[1], msg: esc(itemMatch[2]) }); return; }
+      const genMatch = line.match(/^General\s*:\s*(.+)/i);
+      if (genMatch) { items.push({ t: 'ai', msg: esc(genMatch[1]) }); return; }
+      if (line.length > 5) items.push({ t: 'ai', msg: esc(line) });
+    });
+    return items;
+  } catch(err) {
+    return [{ t: 'w', msg: `🤖 AI check failed: ${esc(err.message)}` }];
+  }
+}
+
+function renderAllPW(items) {
+  const itemNos = [...new Set(pwRows.map(r => r.itemno).filter(Boolean))];
+  renderByRow(
+    items,
+    'pwIssueList',
+    key => {
+      const firstRow = pwRows.find(r => r.itemno === key);
+      const label = firstRow?.component || '';
+      return `Item ${key}${label ? '  ·  ' + label : ''}`;
+    },
+    { err: 'pwNErr', warn: 'pwNWarn', ok: 'pwNOk', okLbl: 'pwLOk',
+      okVal: itemNos.length, okLabel: lang === 'zh' ? '项目' : 'Items' },
+    'pwResults'
+  );
+}
+</script>
+</body>
+</html>
