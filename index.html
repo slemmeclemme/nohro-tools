@@ -1071,26 +1071,20 @@ async function runPWCheck() {
     if (!firstRow.cbm || firstRow.cbm.trim() === '')
       issues.push({ t: 'w', msg: s('pwMissingCBM'), grpKey: itemKey, rowRef: r });
 
-    // Material % per packaging component must sum to 100%
-    const compGroups = {};
-    rws.forEach(row => {
-      if (!row.component) return;
-      const k = row.component.toLowerCase().trim();
-      if (!compGroups[k]) compGroups[k] = [];
-      compGroups[k].push(row);
-    });
-    for (const [, compRows] of Object.entries(compGroups)) {
-      const pcts = compRows.map(cr => parseFloat(cr.matpct)).filter(p => !isNaN(p));
-      if (pcts.length > 0) {
-        const sum = Math.round(pcts.reduce((a,b) => a+b, 0) * 10) / 10;
-        if (sum < 99 || sum > 101) {
-          issues.push({
-            t: 'e',
-            msg: s('pwPctNot100', { comp: compRows[0].component, v: sum }),
-            grpKey: itemKey,
-            rowRef: compRows[0]._row,
-          });
-        }
+    // Material % for all components per item must sum to ~100%
+    // Handles both decimal format (0.0–1.0 stored as proportions) and percentage format (1–100)
+    const allPcts = rws.map(row => parseFloat(row.matpct)).filter(p => !isNaN(p));
+    if (allPcts.length > 0) {
+      const isDecimalFmt = allPcts.every(p => p >= 0 && p <= 1.001);
+      const normPcts = isDecimalFmt ? allPcts.map(p => p * 100) : allPcts;
+      const sum = Math.round(normPcts.reduce((a,b) => a+b, 0) * 10) / 10;
+      if (sum < 99 || sum > 101) {
+        issues.push({
+          t: 'e',
+          msg: s('pwPctNot100', { comp: 'all components', v: sum }),
+          grpKey: itemKey,
+          rowRef: firstRow._row,
+        });
       }
     }
   }
