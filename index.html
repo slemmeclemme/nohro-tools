@@ -91,6 +91,15 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
 .check-btn:active { transform: translateY(0); }
 .check-btn:disabled { background: #94a3b8; cursor: default; transform: none; }
 
+/* ── NEW CHECK BUTTON ────────────────────────────────── */
+.new-check-btn {
+  width: 100%; padding: 12px; border: 2px solid #d1d5db; border-radius: 12px;
+  background: white; color: #6b7280; font-size: 14px; font-weight: 600;
+  cursor: pointer; margin-top: 16px; transition: border-color 0.15s, color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+.new-check-btn:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+
 /* ── RESULTS ─────────────────────────────────────────────── */
 .results-panel { margin-top: 20px; display: none; }
 
@@ -202,6 +211,9 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
       <h3 id="irTitle">Image Review</h3>
       <div class="img-grid" id="imgGrid"></div>
     </div>
+    <button class="new-check-btn" onclick="resetBOM()" id="bomResetBtn">
+      <span id="bomResetTxt">🔄 New Check</span>
+    </button>
   </div>
 </main>
 </div>
@@ -228,6 +240,9 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
       <div class="sum-card ok-card"><div class="num" id="pwNOk">0</div><div class="lbl" id="pwLOk">Items</div></div>
     </div>
     <div class="issues" id="pwIssueList"></div>
+    <button class="new-check-btn" onclick="resetPW()" id="pwResetBtn">
+      <span id="pwResetTxt">🔄 New Check</span>
+    </button>
   </div>
 </main>
 </div>
@@ -608,6 +623,19 @@ function updateFileZone() {
       `<b>Rows:</b> scanned ${d.rawScanned}, skipped ${d.skipped}, filtered ${d.filtered}, ` +
       `<b style="color:${rowColor}">included ${d.included}</b>`;
   }
+}
+
+function resetBOM() {
+  rows = []; imgs = []; lastDebug = null;
+  const z = document.getElementById('fileZone');
+  z.classList.remove('done');
+  document.getElementById('fz-main').textContent = s('fz-main');
+  document.getElementById('fz-sub').textContent = s('fz-sub');
+  document.getElementById('fileIn').value = '';
+  document.getElementById('debugInfo').style.display = 'none';
+  document.getElementById('imgPreviews').innerHTML = '';
+  updateImgZone();
+  document.getElementById('bomResults').style.display = 'none';
 }
 
 function loadImages(files) {
@@ -994,6 +1022,17 @@ function updatePWFileZone() {
       `<b>Rows:</b> scanned ${d.rawScanned}, skipped ${d.skipped}, filtered ${d.filtered}, ` +
       `<b style="color:${col}">included ${d.included}</b> across ${d.items} item(s)`;
   }
+}
+
+function resetPW() {
+  pwRows = []; pwLastDebug = null;
+  const z = document.getElementById('pwFileZone');
+  z.classList.remove('done');
+  document.getElementById('pwfz-main').textContent = s('pwfz-main');
+  document.getElementById('pwfz-sub').textContent = s('pwfz-sub');
+  document.getElementById('pwFileIn').value = '';
+  document.getElementById('pwDebugInfo').style.display = 'none';
+  document.getElementById('pwResults').style.display = 'none';
 }
 
 async function runPWCheck() {
