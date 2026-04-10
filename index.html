@@ -770,9 +770,7 @@ async function runCheck() {
 
   const aiItems = await fetchBOMAIItems();
   renderAll([...issues, ...aiItems]);
-
   btn.disabled = false;
-  btnTxt.textContent = s('btnTxt');
 }
 
 async function fetchBOMAIItems() {
@@ -849,7 +847,13 @@ One issue per line. No bullet points, no headers, no extra formatting.` });
     });
     return items;
   } catch(err) {
-    return [{ t: 'w', msg: `🤖 AI check failed: ${esc(err.message)}` }];
+    const networkErr = /fetch|network|failed to fetch/i.test(err.message);
+    const msg = networkErr
+      ? (lang === 'zh'
+          ? '🤖 AI检查不可用 — 无法连接AI服务（api.anthropic.com可能在此网络中受限）'
+          : '🤖 AI check unavailable — could not reach AI service (api.anthropic.com may be blocked on this network)')
+      : `🤖 AI check failed: ${esc(err.message)}`;
+    return [{ t: 'w', msg }];
   }
 }
 
@@ -1166,9 +1170,7 @@ async function runPWCheck() {
 
   const aiItems = await fetchPWAIItems(itemGroups);
   renderAllPW([...issues, ...aiItems]);
-
   btn.disabled = false;
-  btnTxt.textContent = s('pwBtnTxt');
 }
 
 async function fetchPWAIItems(itemGroups) {
@@ -1228,7 +1230,13 @@ One issue per line. No bullet points, no headers, no extra formatting.` }];
     });
     return items;
   } catch(err) {
-    return [{ t: 'w', msg: `🤖 AI check failed: ${esc(err.message)}` }];
+    const networkErr = /fetch|network|failed to fetch/i.test(err.message);
+    const msg = networkErr
+      ? (lang === 'zh'
+          ? '🤖 AI检查不可用 — 无法连接AI服务（api.anthropic.com可能在此网络中受限）'
+          : '🤖 AI check unavailable — could not reach AI service (api.anthropic.com may be blocked on this network)')
+      : `🤖 AI check failed: ${esc(err.message)}`;
+    return [{ t: 'w', msg }];
   }
 }
 
