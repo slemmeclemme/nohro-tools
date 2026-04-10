@@ -91,14 +91,19 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
 .check-btn:active { transform: translateY(0); }
 .check-btn:disabled { background: #94a3b8; cursor: default; transform: none; }
 
-/* ── NEW CHECK BUTTON ────────────────────────────────── */
-.new-check-btn {
-  width: 100%; padding: 12px; border: 2px solid #d1d5db; border-radius: 12px;
-  background: white; color: #6b7280; font-size: 14px; font-weight: 600;
-  cursor: pointer; margin-top: 16px; transition: border-color 0.15s, color 0.15s, background 0.15s;
-  font-family: inherit;
+/* ── NEW CHECK MODE (button flips after results shown) ── */
+.check-btn.new-check-mode {
+  background: white;
+  color: #6b7280;
+  border: 2px solid #d1d5db;
+  transform: none;
 }
-.new-check-btn:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+.check-btn.new-check-mode:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #2563eb;
+  transform: none;
+}
 
 /* ── RESULTS ─────────────────────────────────────────────── */
 .results-panel { margin-top: 20px; display: none; }
@@ -211,9 +216,6 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
       <h3 id="irTitle">Image Review</h3>
       <div class="img-grid" id="imgGrid"></div>
     </div>
-    <button class="new-check-btn" onclick="resetBOM()" id="bomResetBtn">
-      <span id="bomResetTxt">🔄 New Check</span>
-    </button>
   </div>
 </main>
 </div>
@@ -240,9 +242,6 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
       <div class="sum-card ok-card"><div class="num" id="pwNOk">0</div><div class="lbl" id="pwLOk">Items</div></div>
     </div>
     <div class="issues" id="pwIssueList"></div>
-    <button class="new-check-btn" onclick="resetPW()" id="pwResetBtn">
-      <span id="pwResetTxt">🔄 New Check</span>
-    </button>
   </div>
 </main>
 </div>
@@ -636,6 +635,12 @@ function resetBOM() {
   document.getElementById('imgPreviews').innerHTML = '';
   updateImgZone();
   document.getElementById('bomResults').style.display = 'none';
+  // Restore Run Check button
+  const btn = document.getElementById('checkBtn');
+  const btnTxt = document.getElementById('btnTxt');
+  btn.classList.remove('new-check-mode');
+  btn.onclick = runCheck;
+  btnTxt.textContent = s('btnTxt');
 }
 
 function loadImages(files) {
@@ -879,6 +884,13 @@ function renderAll(items) {
   } else {
     ir.style.display = 'none';
   }
+
+  // Flip Run Check button → New Check
+  const btn = document.getElementById('checkBtn');
+  const btnTxt = document.getElementById('btnTxt');
+  btn.classList.add('new-check-mode');
+  btn.onclick = resetBOM;
+  btnTxt.textContent = lang === 'zh' ? '🔄 Nyt tjek' : '🔄 New Check';
 }
 
 // ══════════════════════════════════════════════════
@@ -1033,6 +1045,12 @@ function resetPW() {
   document.getElementById('pwFileIn').value = '';
   document.getElementById('pwDebugInfo').style.display = 'none';
   document.getElementById('pwResults').style.display = 'none';
+  // Restore Run Check button
+  const btn = document.getElementById('pwCheckBtn');
+  const btnTxt = document.getElementById('pwBtnTxt');
+  btn.classList.remove('new-check-mode');
+  btn.onclick = runPWCheck;
+  btnTxt.textContent = s('pwBtnTxt');
 }
 
 async function runPWCheck() {
@@ -1228,6 +1246,13 @@ function renderAllPW(items) {
       okVal: itemNos.length, okLabel: lang === 'zh' ? '项目' : 'Items' },
     'pwResults'
   );
+
+  // Flip Run Check button → New Check
+  const btn = document.getElementById('pwCheckBtn');
+  const btnTxt = document.getElementById('pwBtnTxt');
+  btn.classList.add('new-check-mode');
+  btn.onclick = resetPW;
+  btnTxt.textContent = lang === 'zh' ? '🔄 Nyt tjek' : '🔄 New Check';
 }
 </script>
 </body>
