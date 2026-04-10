@@ -250,10 +250,6 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
 // ══════════════════════════════════════════════════
 // SHARED
 // ══════════════════════════════════════════════════
-const _K = 'sk-ant-api03-Kh7EoPpis5aUAfyWyLKH7ZmHj05dK' +
-           'lwj9yqxpIr-7N_9OeqPQxkmewEjH5XhxNu6Os6JBWW' +
-           'KhVfYyAqorH-9Hg-3g-ZQgAA';
-
 let lang = 'en';
 
 const L = {
@@ -821,13 +817,10 @@ General: [issue description]
 One issue per line. No bullet points, no headers, no extra formatting.` });
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('https://plain-disk-c334nohro-compliance-proxy.cde-32c.workers.dev/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': _K,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
         messages: [{ role: 'user', content }] })
@@ -1204,13 +1197,10 @@ General: [issue description]
 One issue per line. No bullet points, no headers, no extra formatting.` }];
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('https://plain-disk-c334nohro-compliance-proxy.cde-32c.workers.dev/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': _K,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
         messages: [{ role: 'user', content }] })
