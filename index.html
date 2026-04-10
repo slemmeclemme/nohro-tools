@@ -760,13 +760,22 @@ async function fetchBOMAIItems() {
     if (m) content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
   });
   content.push({ type: 'text', text:
-`You are a product compliance expert reviewing a BOM/BOS for EU compliance (REACH, RoHS, EN71, GPSR).
-${imgs.length > 0 ? 'Product photo(s) attached.' : 'No product photos.'}
+`You are a product compliance expert reviewing a BOM/BOS for EU market compliance.
+${imgs.length > 0 ? 'Product photo(s) attached.' : 'No product photos provided.'}
 
 ${bomText}
 
 Respond in ${lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.
-Only flag REAL issues — do not mention things that are fine.
+Only flag REAL issues — do not mention things that look fine.
+DO NOT comment on test requirements, test certificates, or testing labs — those are handled separately.
+
+Focus exclusively on:
+- REACH/SVHC: restricted substances (e.g. phthalates in PVC, heavy metals, CMR substances), undisclosed additives in materials that may contain SVHC candidates
+- RoHS: restricted substances in electrical/electronic components
+- Material declarations: missing CAS numbers, vague substance names, materials that require further breakdown
+- Product classification risks: e.g. imitation firearms, projectile toys, age category concerns
+- GPSR: EU responsible economic operator requirement, traceability markings
+- EU regulation triggers specific to the materials or product type present in this BOM
 
 Output each issue on its own line using EXACTLY this format:
 Row N: [issue description]
