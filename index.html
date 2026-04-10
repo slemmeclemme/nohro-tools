@@ -760,27 +760,31 @@ async function fetchBOMAIItems() {
     if (m) content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
   });
   content.push({ type: 'text', text:
-`You are a product compliance expert reviewing a BOM/BOS for EU market compliance.
+`You are a compliance data reviewer checking a BOM/BOS for factual errors and missing data.
 ${imgs.length > 0 ? 'Product photo(s) attached.' : 'No product photos provided.'}
 
 ${bomText}
 
 Respond in ${lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.
-Only flag REAL issues — do not mention things that look fine.
-DO NOT comment on test requirements, test certificates, or testing labs — those are handled separately.
 
-Focus exclusively on:
-- REACH/SVHC: restricted substances (e.g. phthalates in PVC, heavy metals, CMR substances), undisclosed additives in materials that may contain SVHC candidates
-- RoHS: restricted substances in electrical/electronic components
-- Material declarations: missing CAS numbers, vague substance names, materials that require further breakdown
-- Product classification risks: e.g. imitation firearms, projectile toys, age category concerns
-- GPSR: EU responsible economic operator requirement, traceability markings
-- EU regulation triggers specific to the materials or product type present in this BOM
+You may ONLY flag an issue if ONE of these three conditions is clearly and certainly true:
+1. A required field is blank or missing (e.g. no CAS number, no concentration, no substance name)
+2. The CAS number given does not match the stated substance — i.e. you are certain the CAS belongs to a different chemical than what is written
+3. The stated material or CAS number is clearly inconsistent with the component it is listed under — i.e. it looks like a data entry error
+
+Do NOT flag:
+- Speculative risks ("may contain", "could trigger", "might require")
+- General regulatory requirements (GPSR, EN71, test obligations, operator markings)
+- Concerns about what additives might be present but are not declared
+- Product classification opinions
+- Anything that is not a clear factual error or definite gap in the data itself
+
+If nothing meets the above criteria, output nothing at all.
 
 Output each issue on its own line using EXACTLY this format:
 Row N: [issue description]
 
-Use the row number from the data above. If an issue is general and not tied to a specific row, write:
+If an issue has no specific row, write:
 General: [issue description]
 
 One issue per line. No bullet points, no headers, no extra formatting.` });
