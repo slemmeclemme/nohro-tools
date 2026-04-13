@@ -552,7 +552,25 @@ function loadFile(file) {
       const candidates = wb.SheetNames.filter(n => /bom|bos/i.test(n) && !/reference|guide|example|template|sample/i.test(n));
       if (candidates.length > 0) sn = candidates[0];
       else { const any = wb.SheetNames.find(n => /bom|bos/i.test(n)); if (any) sn = any; }
-      const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+      const ws = wb.Sheets[sn];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // Expand merged cells so every row in a merge inherits the top-left value.
+      if (ws['!merges']) {
+        for (const m of ws['!merges']) {
+          const topRow = raw[m.s.r];
+          if (!topRow) continue;
+          const v = topRow[m.s.c];
+          if (v === '' || v === null || v === undefined) continue;
+          for (let rr = m.s.r; rr <= m.e.r; rr++) {
+            if (!raw[rr]) continue;
+            for (let cc = m.s.c; cc <= m.e.c; cc++) {
+              if (raw[rr][cc] === '' || raw[rr][cc] === null || raw[rr][cc] === undefined) {
+                raw[rr][cc] = v;
+              }
+            }
+          }
+        }
+      }
 
       let hi = -1;
       for (const minCols of [4, 3, 2, 1]) {
@@ -969,7 +987,26 @@ function loadPWFile(file) {
       const candidates = wb.SheetNames.filter(n => /paper|packaging|pack/i.test(n) && !/reference|guide|example|template|sample/i.test(n));
       if (candidates.length > 0) sn = candidates[0];
       else { const any = wb.SheetNames.find(n => /paper|packaging|pack/i.test(n)); if (any) sn = any; }
-      const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+      const ws = wb.Sheets[sn];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // Expand merged cells so every row in a merge inherits the top-left value.
+      // Master Carton Info is typically merged across all component rows of an item.
+      if (ws['!merges']) {
+        for (const m of ws['!merges']) {
+          const topRow = raw[m.s.r];
+          if (!topRow) continue;
+          const v = topRow[m.s.c];
+          if (v === '' || v === null || v === undefined) continue;
+          for (let rr = m.s.r; rr <= m.e.r; rr++) {
+            if (!raw[rr]) continue;
+            for (let cc = m.s.c; cc <= m.e.c; cc++) {
+              if (raw[rr][cc] === '' || raw[rr][cc] === null || raw[rr][cc] === undefined) {
+                raw[rr][cc] = v;
+              }
+            }
+          }
+        }
+      }
 
       let hi = -1;
       for (const minCols of [4, 3, 2, 1]) {
