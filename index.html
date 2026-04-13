@@ -548,7 +548,10 @@ function loadFile(file) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array' });
       let sn = wb.SheetNames[0];
-      wb.SheetNames.forEach(n => { if (/bom|bos/i.test(n)) sn = n; });
+      // Prefer data sheet over reference/guide/example/template sheets
+      const candidates = wb.SheetNames.filter(n => /bom|bos/i.test(n) && !/reference|guide|example|template|sample/i.test(n));
+      if (candidates.length > 0) sn = candidates[0];
+      else { const any = wb.SheetNames.find(n => /bom|bos/i.test(n)); if (any) sn = any; }
       const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
 
       let hi = -1;
@@ -962,7 +965,10 @@ function loadPWFile(file) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array' });
       let sn = wb.SheetNames[0];
-      wb.SheetNames.forEach(n => { if (/paper|packaging|pack/i.test(n)) sn = n; });
+      // Prefer data sheet over reference/guide/example/template sheets
+      const candidates = wb.SheetNames.filter(n => /paper|packaging|pack/i.test(n) && !/reference|guide|example|template|sample/i.test(n));
+      if (candidates.length > 0) sn = candidates[0];
+      else { const any = wb.SheetNames.find(n => /paper|packaging|pack/i.test(n)); if (any) sn = any; }
       const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
 
       let hi = -1;
