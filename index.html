@@ -1107,46 +1107,52 @@ async function runPWCheck() {
   });
 
   // ── Per-item checks ──
+  // Item-level fields may be recorded on any row of the item (often only on the
+  // Color Box / outer row), so check if ANY row in the group has a value.
+  const anyHas = (rws, field) => rws.some(r => r[field] && String(r[field]).trim() !== '');
+  const anyRowWith = (rws, field) => rws.find(r => r[field] && String(r[field]).trim() !== '');
   for (const [itemKey, rws] of Object.entries(itemGroups)) {
     const firstRow = rws[0];
     const r = firstRow._row;
 
-    if (!firstRow.nw || firstRow.nw.trim() === '')
+    if (!anyHas(rws, 'nw'))
       issues.push({ t: 'e', msg: s('pwMissingNW'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.gw || firstRow.gw.trim() === '')
+    if (!anyHas(rws, 'gw'))
       issues.push({ t: 'e', msg: s('pwMissingGW'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.prodsize || firstRow.prodsize.trim() === '')
+    if (!anyHas(rws, 'prodsize'))
       issues.push({ t: 'w', msg: s('pwMissingProdSize'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.pkgsize || firstRow.pkgsize.trim() === '')
+    if (!anyHas(rws, 'pkgsize'))
       issues.push({ t: 'w', msg: s('pwMissingPkgSize'), grpKey: itemKey, rowRef: r });
 
     // PVC
-    if (!firstRow.pvc || firstRow.pvc.trim() === '') {
+    const pvcRow = anyRowWith(rws, 'pvc');
+    if (!pvcRow) {
       issues.push({ t: 'w', msg: s('pwMissingPVC'), grpKey: itemKey, rowRef: r });
-    } else if (!/^(yes|no|是|否)/i.test(firstRow.pvc.trim())) {
-      issues.push({ t: 'w', msg: s('pwBadPVC', {v: firstRow.pvc}), grpKey: itemKey, rowRef: r });
+    } else if (!/^(yes|no|是|否)/i.test(pvcRow.pvc.trim())) {
+      issues.push({ t: 'w', msg: s('pwBadPVC', {v: pvcRow.pvc}), grpKey: itemKey, rowRef: pvcRow._row });
     }
 
     // Batteries
-    if (!firstRow.batteries || firstRow.batteries.trim() === '') {
+    const batRow = anyRowWith(rws, 'batteries');
+    if (!batRow) {
       issues.push({ t: 'w', msg: s('pwMissingBat'), grpKey: itemKey, rowRef: r });
-    } else if (!/^(yes|no|是|否)/i.test(firstRow.batteries.trim())) {
-      issues.push({ t: 'w', msg: s('pwBadBat', {v: firstRow.batteries}), grpKey: itemKey, rowRef: r });
-    } else if (/^(yes|是)/i.test(firstRow.batteries.trim()) && (!firstRow.batwt || firstRow.batwt.trim() === '')) {
-      issues.push({ t: 'e', msg: s('pwMissingBatWt'), grpKey: itemKey, rowRef: r });
+    } else if (!/^(yes|no|是|否)/i.test(batRow.batteries.trim())) {
+      issues.push({ t: 'w', msg: s('pwBadBat', {v: batRow.batteries}), grpKey: itemKey, rowRef: batRow._row });
+    } else if (/^(yes|是)/i.test(batRow.batteries.trim()) && !anyHas(rws, 'batwt')) {
+      issues.push({ t: 'e', msg: s('pwMissingBatWt'), grpKey: itemKey, rowRef: batRow._row });
     }
 
-    if (!firstRow.hscode || firstRow.hscode.trim() === '')
+    if (!anyHas(rws, 'hscode'))
       issues.push({ t: 'w', msg: s('pwMissingHS'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.cartons || firstRow.cartons.trim() === '')
+    if (!anyHas(rws, 'cartons'))
       issues.push({ t: 'w', msg: s('pwMissingCartons'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.cartonsize || firstRow.cartonsize.trim() === '')
+    if (!anyHas(rws, 'cartonsize'))
       issues.push({ t: 'w', msg: s('pwMissingCartonSize'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.cartongw || firstRow.cartongw.trim() === '')
+    if (!anyHas(rws, 'cartongw'))
       issues.push({ t: 'w', msg: s('pwMissingCartonGW'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.cartonnw || firstRow.cartonnw.trim() === '')
+    if (!anyHas(rws, 'cartonnw'))
       issues.push({ t: 'w', msg: s('pwMissingCartonNW'), grpKey: itemKey, rowRef: r });
-    if (!firstRow.cbm || firstRow.cbm.trim() === '')
+    if (!anyHas(rws, 'cbm'))
       issues.push({ t: 'w', msg: s('pwMissingCBM'), grpKey: itemKey, rowRef: r });
 
     // Material % for all components per item must sum to ~100%
