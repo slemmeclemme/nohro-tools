@@ -297,6 +297,7 @@ const L = {
     pwMissingMatPct: 'Missing material %',
     pwBadMatPct: 'Material % "{v}" is not a number',
     pwPctNot100: '"{comp}": material percentages sum to {v}% — must be 100%',
+    pwWeightMismatch: 'Component weights sum to {sum}g but packaging weight (GW − NW) is {pkg}g (diff {diff}g)',
     pwMissingNW: 'Missing net weight (NW)',
     pwMissingGW: 'Missing gross weight (GW)',
     pwMissingProdSize: 'Missing product size',
@@ -357,6 +358,7 @@ const L = {
     pwMissingMatPct: '缺少材料百分比',
     pwBadMatPct: '材料百分比"{v}"不是数字',
     pwPctNot100: '"{comp}"：材料百分比合计{v}% — 必须等于100%',
+    pwWeightMismatch: '组件重量合计 {sum}g，但包装重量 (GW − NW) 为 {pkg}g（差值 {diff}g）',
     pwMissingNW: '缺少净重（NW）',
     pwMissingGW: '缺少毛重（GW）',
     pwMissingProdSize: '缺少产品尺寸',
@@ -927,6 +929,7 @@ const PW_COL = {
   comptype:   ['component\ntype','component type','组件类型'],
   recyccode:  ['recycling\ncode','recycling code','recycling','回收代码','回收码'],
   matpct:     ['material\n%','material %','material%','材料%','材料百分比'],
+  matwt:      ['weight pr. material','weight pr material','weight per material','material weight','材料重量'],
   pvc:        ['pvc?\n(yes/no)','pvc?','pvc','pvc含量'],
   batteries:  ['batteries?\n(yes/no)','batteries?','batteries','电池'],
   batwt:      ['battery weight','bat. weight','bat weight','电池重量'],
@@ -1203,6 +1206,34 @@ async function runPWCheck() {
         issues.push({
           t: 'e',
           msg: s('pwPctNot100', { comp: 'all components', v: sum }),
+          grpKey: itemKey,
+          rowRef: firstRow._row,
+        });
+      }
+    }
+
+    // Sum of per-component material weights must equal packaging weight (GW − NW)
+    // Handles Danish comma decimals and trailing "g"/"G" unit suffix.
+    const parseWt = v => {
+      if (v === null || v === undefined) return NaN;
+      const cleaned = String(v).replace(/[gG\s]/g, '').replace(',', '.');
+      return parseFloat(cleaned);
+    };
+    const gwRow = anyRowWith(rws, 'gw');
+    const nwRow = anyRowWith(rws, 'nw');
+    const gw = gwRow ? parseWt(gwRow.gw) : NaN;
+    const nw = nwRow ? parseWt(nwRow.nw) : NaN;
+    const compWts = rws.map(row => parseWt(row.matwt)).filter(n => !isNaN(n));
+    if (!isNaN(gw) && !isNaN(nw) && compWts.length > 0) {
+      const pkgWt = Math.round((gw - nw) * 10) / 10;
+      const compSum = Math.round(compWts.reduce((a, b) => a + b, 0) * 10) / 10;
+      const diff = Math.round((compSum - pkgWt) * 10) / 10;
+      // Tolerance: 1g absolute OR 5% of packaging weight, whichever is larger
+      const tol = Math.max(1, Math.abs(pkgWt) * 0.05);
+      if (Math.abs(diff) > tol) {
+        issues.push({
+          t: 'e',
+          msg: s('pwWeightMismatch', { sum: compSum, pkg: pkgWt, diff }),
           grpKey: itemKey,
           rowRef: firstRow._row,
         });
