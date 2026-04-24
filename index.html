@@ -942,13 +942,17 @@ const PW_COL = {
 };
 
 const VALID_RECYCLING_CODES = [
-  'paper',
-  'pap 20','pap 21','pap 22',
-  'pet (1)','pet(1)',
-  'pe-hd (2)','pe-hd(2)',
-  'pe-ld (4)','pe-ld(4)',
-  'pp (5)','pp(5)',
-  'ps (6)','ps(6)',
+  // Plastics 1–7
+  'pet (1)','pet(1)','pet 1','pet',
+  'hdpe (2)','hdpe(2)','hdpe 2','hdpe','pe-hd (2)','pe-hd(2)','pe-hd',
+  'pvc (3)','pvc(3)','pvc 3','pvc',
+  'ldpe (4)','ldpe(4)','ldpe 4','ldpe','pe-ld (4)','pe-ld(4)','pe-ld',
+  'pp (5)','pp(5)','pp 5','pp',
+  'ps (6)','ps(6)','ps 6','ps',
+  'other (7)','other(7)','other 7','other',
+  // Paper & Board 20–22
+  'pap 20','pap 21','pap 22','paper',
+  // No label
   'no label','no label required',
 ];
 
