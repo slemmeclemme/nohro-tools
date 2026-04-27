@@ -298,15 +298,20 @@ const L = {
     pwBadMatPct: 'Material % "{v}" is not a number',
     pwPctNot100: '"{comp}": material percentages sum to {v}% — must be 100%',
     pwWeightMismatch: 'Component weights sum to {sum}g but packaging weight (GW − NW) is {pkg}g (diff {diff}g)',
+    pwWeightVsNW: 'Component weights sum to {sum}g but Net Weight is {nw}g (diff {diff}g)',
     pwMissingNW: 'Missing net weight (NW)',
     pwMissingGW: 'Missing gross weight (GW)',
     pwMissingProdSize: 'Missing product size',
     pwMissingPkgSize: 'Missing packaging size',
     pwMissingPVC: 'PVC field missing — must be Yes or No',
     pwBadPVC: 'PVC field "{v}" should be "Yes" or "No"',
+    pwPVCNotAllowed: 'PVC is marked YES — PVC is not accepted in packaging per Nohro policy',
     pwMissingBat: 'Batteries field missing — must be Yes or No',
     pwBadBat: 'Batteries field "{v}" should be "Yes" or "No"',
     pwMissingBatWt: 'Battery weight missing — required when Batteries = Yes',
+    pwMissingBatType: 'Battery type missing — required when Batteries = Yes',
+    pwMissingBatPcs: 'Battery pcs. missing — required when Batteries = Yes',
+    pwMissingBatChg: 'Battery changeable? missing — required when Batteries = Yes',
     pwMissingHS: 'Missing HS Code',
     pwMissingCartons: 'Missing no. of cartons',
     pwMissingCartonSize: 'Missing carton size',
@@ -359,15 +364,20 @@ const L = {
     pwBadMatPct: '材料百分比"{v}"不是数字',
     pwPctNot100: '"{comp}"：材料百分比合计{v}% — 必须等于100%',
     pwWeightMismatch: '组件重量合计 {sum}g，但包装重量 (GW − NW) 为 {pkg}g（差值 {diff}g）',
+    pwWeightVsNW: '组件重量合计 {sum}g，但净重为 {nw}g（差值 {diff}g）',
     pwMissingNW: '缺少净重（NW）',
     pwMissingGW: '缺少毛重（GW）',
     pwMissingProdSize: '缺少产品尺寸',
     pwMissingPkgSize: '缺少包装尺寸',
     pwMissingPVC: '缺少PVC字段 — 必须填写是或否',
     pwBadPVC: 'PVC字段"{v}"应为"Yes"或"No"',
+    pwPVCNotAllowed: 'PVC标记为YES — 根据Nohro政策，包装中不接受PVC',
     pwMissingBat: '缺少电池字段 — 必须填写是或否',
     pwBadBat: '电池字段"{v}"应为"Yes"或"No"',
     pwMissingBatWt: '缺少电池重量 — 当电池=是时必填',
+    pwMissingBatType: '缺少电池类型 — 当电池=是时必填',
+    pwMissingBatPcs: '缺少电池数量 — 当电池=是时必填',
+    pwMissingBatChg: '缺少电池可更换字段 — 当电池=是时必填',
     pwMissingHS: '缺少HS编码',
     pwMissingCartons: '缺少箱数',
     pwMissingCartonSize: '缺少纸箱尺寸',
@@ -925,20 +935,23 @@ const PW_COL = {
   gw:         ['gross weight\n(gw)','gross weight (gw)','gross weight','gw','毛重'],
   prodsize:   ['product size\n(lxhxw cm)','product size','产品尺寸'],
   pkgsize:    ['packaging size\n(lxhxw cm)','packaging size','包装尺寸'],
-  component:  ['packaging\ncomponent','packaging component','component','包装组件'],
+  component:  ['packaging\ncomponent','packaging component','component','包装组件','包装方式'],
   comptype:   ['component\ntype','component type','组件类型'],
   recyccode:  ['recycling\ncode','recycling code','recycling','回收代码','回收码'],
   matpct:     ['material\n%','material %','material%','材料%','材料百分比'],
   matwt:      ['weight pr. material','weight pr material','weight per material','material weight','材料重量'],
-  pvc:        ['pvc?\n(yes/no)','pvc?','pvc','pvc含量'],
-  batteries:  ['batteries?\n(yes/no)','batteries?','batteries','电池'],
-  batwt:      ['battery weight','bat. weight','bat weight','电池重量'],
+  pvc:        ['pvc?\n(yes/no)','pvc?','pvc','pvc含量','是否含pvc'],
+  batteries:  ['batteries?\n(yes/no)','batteries?','batteries','电池','是否有电池'],
+  battype:    ['battery type','电池类型'],
+  batpcs:     ['battery pcs','battery pcs.','电池数量'],
+  batchg:     ['battery changeable','电池可更换'],
+  batwt:      ['battery\nweight','battery weight','bat. weight','bat weight','电池重量'],
   hscode:     ['hs code','hs-code','hs','海关编码','hs编码'],
-  cartons:    ['no. of cartons','no. of\ncartons','cartons','箱数'],
+  cartons:    ['no. of cartons','no. of\ncartons','cartons','箱数','纸箱数量'],
   cartonsize: ['carton size','carton\nsize','纸箱尺寸'],
   cartongw:   ['carton gw','carton\ngw','纸箱毛重'],
   cartonnw:   ['carton nw','carton\nnw','纸箱净重'],
-  cbm:        ['total cbm','cbm','总cbm'],
+  cbm:        ['total cbm','cbm','总cbm','立方数'],
 };
 
 const VALID_RECYCLING_CODES = [
@@ -1169,22 +1182,32 @@ async function runPWCheck() {
     if (!anyHas(rws, 'pkgsize'))
       issues.push({ t: 'w', msg: s('pwMissingPkgSize'), grpKey: itemKey, rowRef: r });
 
-    // PVC
+    // PVC — not accepted in packaging per Nohro policy
     const pvcRow = anyRowWith(rws, 'pvc');
     if (!pvcRow) {
       issues.push({ t: 'w', msg: s('pwMissingPVC'), grpKey: itemKey, rowRef: r });
     } else if (!/^(yes|no|是|否)/i.test(pvcRow.pvc.trim())) {
       issues.push({ t: 'w', msg: s('pwBadPVC', {v: pvcRow.pvc}), grpKey: itemKey, rowRef: pvcRow._row });
+    } else if (/^(yes|是)/i.test(pvcRow.pvc.trim())) {
+      issues.push({ t: 'e', msg: s('pwPVCNotAllowed'), grpKey: itemKey, rowRef: pvcRow._row });
     }
 
-    // Batteries
+    // Batteries — if Yes, require type, pcs, changeable, weight
     const batRow = anyRowWith(rws, 'batteries');
     if (!batRow) {
       issues.push({ t: 'w', msg: s('pwMissingBat'), grpKey: itemKey, rowRef: r });
     } else if (!/^(yes|no|是|否)/i.test(batRow.batteries.trim())) {
       issues.push({ t: 'w', msg: s('pwBadBat', {v: batRow.batteries}), grpKey: itemKey, rowRef: batRow._row });
-    } else if (/^(yes|是)/i.test(batRow.batteries.trim()) && !anyHas(rws, 'batwt')) {
-      issues.push({ t: 'e', msg: s('pwMissingBatWt'), grpKey: itemKey, rowRef: batRow._row });
+    } else if (/^(yes|是)/i.test(batRow.batteries.trim())) {
+      const bRef = batRow._row;
+      if (!anyHas(rws, 'battype'))
+        issues.push({ t: 'e', msg: s('pwMissingBatType'), grpKey: itemKey, rowRef: bRef });
+      if (!anyHas(rws, 'batpcs'))
+        issues.push({ t: 'e', msg: s('pwMissingBatPcs'), grpKey: itemKey, rowRef: bRef });
+      if (!anyHas(rws, 'batchg'))
+        issues.push({ t: 'e', msg: s('pwMissingBatChg'), grpKey: itemKey, rowRef: bRef });
+      if (!anyHas(rws, 'batwt'))
+        issues.push({ t: 'e', msg: s('pwMissingBatWt'), grpKey: itemKey, rowRef: bRef });
     }
 
     if (!anyHas(rws, 'hscode'))
@@ -1217,23 +1240,38 @@ async function runPWCheck() {
       }
     }
 
-    // Sum of per-component material weights must equal packaging weight (GW − NW)
-    // Handles Danish comma decimals and trailing "g"/"G" unit suffix.
+    // Parse weight values — handles Danish comma decimals and trailing "g"/"G" suffix
     const parseWt = v => {
       if (v === null || v === undefined) return NaN;
       const cleaned = String(v).replace(/[gG\s]/g, '').replace(',', '.');
       return parseFloat(cleaned);
     };
-    const gwRow = anyRowWith(rws, 'gw');
+
+    // Sum of per-component material weights must equal Net Weight
     const nwRow = anyRowWith(rws, 'nw');
-    const gw = gwRow ? parseWt(gwRow.gw) : NaN;
     const nw = nwRow ? parseWt(nwRow.nw) : NaN;
     const compWts = rws.map(row => parseWt(row.matwt)).filter(n => !isNaN(n));
+    if (!isNaN(nw) && compWts.length > 0) {
+      const compSum = Math.round(compWts.reduce((a, b) => a + b, 0) * 10) / 10;
+      const diff = Math.round((compSum - nw) * 10) / 10;
+      const tol = Math.max(1, Math.abs(nw) * 0.05);
+      if (Math.abs(diff) > tol) {
+        issues.push({
+          t: 'e',
+          msg: s('pwWeightVsNW', { sum: compSum, nw, diff }),
+          grpKey: itemKey,
+          rowRef: firstRow._row,
+        });
+      }
+    }
+
+    // Also check: sum of packaging weights vs GW − NW
+    const gwRow = anyRowWith(rws, 'gw');
+    const gw = gwRow ? parseWt(gwRow.gw) : NaN;
     if (!isNaN(gw) && !isNaN(nw) && compWts.length > 0) {
       const pkgWt = Math.round((gw - nw) * 10) / 10;
       const compSum = Math.round(compWts.reduce((a, b) => a + b, 0) * 10) / 10;
       const diff = Math.round((compSum - pkgWt) * 10) / 10;
-      // Tolerance: 1g absolute OR 5% of packaging weight, whichever is larger
       const tol = Math.max(1, Math.abs(pkgWt) * 0.05);
       if (Math.abs(diff) > tol) {
         issues.push({
