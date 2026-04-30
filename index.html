@@ -943,10 +943,13 @@ const PW_COL = {
   gw:         ['gross weight\n(gw)','gross weight (gw)','gross weight','gw','毛重'],
   prodsize:   ['product size\n(lxhxw cm)','product size','产品尺寸'],
   pkgsize:    ['packaging size\n(lxhxw cm)','packaging size','包装尺寸'],
+  prodmat:    ['product materials','product material','产品材料'],
+  prodmatpct: ['material\n%','material %','material%','材料%','材料占比','材料百分比'],
+  prodmatwt:  ['weight pr. material','weight pr material','weight per material','material weight','材料重量'],
   component:  ['packaging\ncomponent','packaging component','component','包装组件','包装方式'],
   comptype:   ['component\ntype','component type','组件类型'],
   recyccode:  ['recycling\ncode','recycling code','recycling','回收代码','回收码'],
-  matpct:     ['material\n%','material %','material%','材料%','材料百分比'],
+  matpct:     ['material\n%','material %','material%','材料%','材料占比','材料百分比'],
   matwt:      ['weight pr. material','weight pr material','weight per material','material weight','材料重量'],
   pvc:        ['pvc?\n(yes/no)','pvc?','pvc','pvc含量','是否含pvc'],
   batteries:  ['batteries?\n(yes/no)','batteries?','batteries','电池','是否有电池'],
@@ -994,12 +997,23 @@ function isPWSkipRow(row) {
   return PW_SKIP.some(p => p.test(first));
 }
 
+// Fields where we want the LAST matching column (not the first).
+// matpct and matwt appear twice: once for product materials, once for packaging.
+// The packaging columns come after the product columns, so we want the last match.
+const PW_LAST_MATCH = new Set(['matpct','matwt']);
+
 function detectPWCols(headers) {
   const map = {};
   headers.forEach((h, i) => {
     const hn = String(h).toLowerCase().replace(/\n/g,' ').replace(/\s+/g,' ').trim();
     for (const [field, aliases] of Object.entries(PW_COL)) {
-      if (!map.hasOwnProperty(field) && aliases.some(a => hn.includes(a))) map[field] = i;
+      if (aliases.some(a => hn.includes(a))) {
+        if (PW_LAST_MATCH.has(field)) {
+          map[field] = i; // always overwrite → last match wins
+        } else if (!map.hasOwnProperty(field)) {
+          map[field] = i; // first match wins (default)
+        }
+      }
     }
   });
   return map;
@@ -1063,7 +1077,8 @@ function loadPWFile(file) {
         for (const [f, idx] of Object.entries(colMap)) obj[f] = String(r[idx] ?? '').trim();
         if (!obj.itemno && lastItemNo) obj.itemno = lastItemNo;
         else if (obj.itemno) lastItemNo = obj.itemno;
-        const meaningful = [obj.itemno, obj.component, obj.recyccode, obj.matpct].filter(v => v && v.trim().length > 0);
+        // Include rows that have any relevant data — either packaging or product material fields
+        const meaningful = [obj.itemno, obj.component, obj.recyccode, obj.matpct, obj.prodmat, obj.prodmatpct, obj.prodmatwt, obj.matwt].filter(v => v && v.trim().length > 0);
         if (meaningful.length >= 1) { pwRows.push(obj); } else filtered++;
       }
 
@@ -1141,9 +1156,17 @@ async function runPWCheck() {
   });
 
   // ── Per-row checks ──
+  // Rows may contain only product-material data (cols F/G/H) without packaging
+  // data (cols J-N). Only check packaging fields when the row has packaging content.
   pwRows.forEach(row => {
     const r = row._row;
     const itemKey = row.itemno || '_unknown';
+    const hasPkg = (row.component && row.component.trim() !== '') ||
+                   (row.recyccode && row.recyccode.trim() !== '') ||
+                   (row.matpct && row.matpct.trim() !== '') ||
+                   (row.matwt && row.matwt.trim() !== '');
+
+    if (!hasPkg) return; // product-only row — skip packaging checks
 
     if (!row.component || row.component.trim() === '')
       issues.push({ t: 'e', msg: s('pwMissingComponent'), grpKey: itemKey, rowRef: r });
@@ -1231,9 +1254,16 @@ async function runPWCheck() {
     if (!anyHas(rws, 'cbm'))
       issues.push({ t: 'w', msg: s('pwMissingCBM'), grpKey: itemKey, rowRef: r });
 
-    // Material % for all components per item must sum to ~100%
+    // Filter to rows that have packaging data (component/recyccode/matpct/matwt)
+    const pkgRows = rws.filter(row =>
+      (row.component && row.component.trim() !== '') ||
+      (row.recyccode && row.recyccode.trim() !== '') ||
+      (row.matpct && row.matpct.trim() !== '') ||
+      (row.matwt && row.matwt.trim() !== ''));
+
+    // Material % for all PACKAGING components per item must sum to ~100%
     // Handles both decimal format (0.0–1.0 stored as proportions) and percentage format (1–100)
-    const allPcts = rws.map(row => parseFloat(row.matpct)).filter(p => !isNaN(p));
+    const allPcts = pkgRows.map(row => parseFloat(row.matpct)).filter(p => !isNaN(p));
     if (allPcts.length > 0) {
       const isDecimalFmt = allPcts.every(p => p >= 0 && p <= 1.001);
       const normPcts = isDecimalFmt ? allPcts.map(p => p * 100) : allPcts;
@@ -1241,7 +1271,7 @@ async function runPWCheck() {
       if (sum < 99 || sum > 101) {
         issues.push({
           t: 'e',
-          msg: s('pwPctNot100', { comp: 'all components', v: sum }),
+          msg: s('pwPctNot100', { comp: 'packaging components', v: sum }),
           grpKey: itemKey,
           rowRef: firstRow._row,
         });
@@ -1255,30 +1285,15 @@ async function runPWCheck() {
       return parseFloat(cleaned);
     };
 
-    // Sum of per-component material weights must equal Net Weight
+    // Sum of PACKAGING component weights must equal GW − NW
     const nwRow = anyRowWith(rws, 'nw');
-    const nw = nwRow ? parseWt(nwRow.nw) : NaN;
-    const compWts = rws.map(row => parseWt(row.matwt)).filter(n => !isNaN(n));
-    if (!isNaN(nw) && compWts.length > 0) {
-      const compSum = Math.round(compWts.reduce((a, b) => a + b, 0) * 10) / 10;
-      const diff = Math.round((compSum - nw) * 10) / 10;
-      const tol = Math.max(1, Math.abs(nw) * 0.05);
-      if (Math.abs(diff) > tol) {
-        issues.push({
-          t: 'e',
-          msg: s('pwWeightVsNW', { sum: compSum, nw, diff }),
-          grpKey: itemKey,
-          rowRef: firstRow._row,
-        });
-      }
-    }
-
-    // Also check: sum of packaging weights vs GW − NW
     const gwRow = anyRowWith(rws, 'gw');
+    const nw = nwRow ? parseWt(nwRow.nw) : NaN;
     const gw = gwRow ? parseWt(gwRow.gw) : NaN;
-    if (!isNaN(gw) && !isNaN(nw) && compWts.length > 0) {
+    const pkgWts = pkgRows.map(row => parseWt(row.matwt)).filter(n => !isNaN(n));
+    if (!isNaN(gw) && !isNaN(nw) && pkgWts.length > 0) {
       const pkgWt = Math.round((gw - nw) * 10) / 10;
-      const compSum = Math.round(compWts.reduce((a, b) => a + b, 0) * 10) / 10;
+      const compSum = Math.round(pkgWts.reduce((a, b) => a + b, 0) * 10) / 10;
       const diff = Math.round((compSum - pkgWt) * 10) / 10;
       const tol = Math.max(1, Math.abs(pkgWt) * 0.05);
       if (Math.abs(diff) > tol) {
