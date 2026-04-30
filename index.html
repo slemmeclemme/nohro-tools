@@ -284,6 +284,7 @@ const L = {
     missingDecl: 'No test certificate reference noted',
     genericDecl: 'Test cert reference looks incomplete — add cert number and date',
     svhcHit: '{sub} (CAS {cas}) is a substance of concern — check concentration and SVHC status',
+    tprGuide: 'TPR (thermoplastic rubber) is a material family, not a single substance — it has no single CAS number. Typical components: SBS/SEBS (9003-55-8), PP (9003-07-0), PE (9002-88-4). List each polymer with its own CAS and concentration%. Additives (plasticisers, colorants, stabilisers) must also be declared separately.',
     blackPlastic: 'Black plastic detected — PAH test likely required (REACH Annex XVII)',
     noImg: 'No photos uploaded — visual check not possible',
     fzDone: 'File loaded: {n} rows',
@@ -351,6 +352,7 @@ const L = {
     missingDecl: '未填写测试证书编号',
     genericDecl: '测试证书参考似乎不完整 — 请添加证书编号和日期',
     svhcHit: '{sub}（CAS {cas}）为关注物质 — 请核查浓度及SVHC状态',
+    tprGuide: 'TPR（热塑性橡胶）是一个材料系列，不是单一物质，没有单一CAS号。典型成分：SBS/SEBS (9003-55-8)、PP (9003-07-0)、PE (9002-88-4)。请分别列出每种聚合物及其CAS和浓度%。添加剂（增塑剂、着色剂、稳定剂）也必须单独申报。',
     blackPlastic: '检测到黑色塑料 — 可能需要PAH测试（REACH附件XVII）',
     noImg: '未上传图片 — 无法进行外观核查',
     fzDone: '文件已加载：{n}行数据',
@@ -759,6 +761,12 @@ async function runCheck() {
         const hit = CONCERN[cas];
         if (hit) issues.push({ t: 'e', msg: s('svhcHit', {sub: hit, cas}), grpKey: gk, rowRef: r });
       });
+    }
+
+    // TPR / material-family guidance
+    const matConc = [row.material, row.conc, row.substance].join(' ');
+    if (/\btpr\b|thermoplastic.?rubber|热塑性橡胶/i.test(matConc)) {
+      issues.push({ t: 'e', msg: s('tprGuide'), grpKey: gk, rowRef: r });
     }
 
     if (isBlank(row.conc)) {
