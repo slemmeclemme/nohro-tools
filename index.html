@@ -319,6 +319,7 @@ const L = {
     pwMissingCartonGW: 'Missing carton gross weight (GW)',
     pwMissingCartonNW: 'Missing carton net weight (NW)',
     pwMissingCBM: 'Missing total CBM',
+    pwPkgExceedsCarton: 'Packaging size {pkgDim} does not fit in master carton {ctnDim} — the {axis} dimension ({pkgVal} cm) exceeds carton ({ctnVal} cm)',
     pwDarkPlastic: 'Dark/black plastic detected in "{comp}" — cannot be sorted by recycling facilities',
   },
   zh: {
@@ -386,6 +387,7 @@ const L = {
     pwMissingCartonGW: '缺少纸箱毛重',
     pwMissingCartonNW: '缺少纸箱净重',
     pwMissingCBM: '缺少总CBM',
+    pwPkgExceedsCarton: '包装尺寸 {pkgDim} 无法放入纸箱 {ctnDim} — {axis}维度（{pkgVal} cm）超过纸箱（{ctnVal} cm）',
     pwDarkPlastic: '"{comp}"中检测到深色/黑色塑料 — 无法被回收设施分类',
   }
 };
@@ -1253,6 +1255,38 @@ async function runPWCheck() {
       issues.push({ t: 'w', msg: s('pwMissingCartonNW'), grpKey: itemKey, rowRef: r });
     if (!anyHas(rws, 'cbm'))
       issues.push({ t: 'w', msg: s('pwMissingCBM'), grpKey: itemKey, rowRef: r });
+
+    // Check packaging dimensions fit inside master carton
+    // Parses "LxHxW" or "L*H*W" strings, sorts dimensions descending, then compares
+    const parseDims = v => {
+      if (!v) return null;
+      const parts = String(v).replace(/cm/gi,'').trim().split(/[x*×]/i).map(s => parseFloat(s.replace(',','.')));
+      if (parts.length < 2 || parts.some(isNaN)) return null;
+      return parts.sort((a,b) => b - a); // largest first
+    };
+    const pkgSizeRow = anyRowWith(rws, 'pkgsize');
+    const ctnSizeRow = anyRowWith(rws, 'cartonsize');
+    if (pkgSizeRow && ctnSizeRow) {
+      const pkg = parseDims(pkgSizeRow.pkgsize);
+      const ctn = parseDims(ctnSizeRow.cartonsize);
+      if (pkg && ctn) {
+        const axes = ['longest','middle','shortest'];
+        for (let i = 0; i < Math.min(pkg.length, ctn.length); i++) {
+          if (pkg[i] > ctn[i] + 0.5) { // 0.5cm tolerance
+            issues.push({
+              t: 'e',
+              msg: s('pwPkgExceedsCarton', {
+                pkgDim: pkgSizeRow.pkgsize, ctnDim: ctnSizeRow.cartonsize,
+                axis: axes[i] || 'a', pkgVal: pkg[i], ctnVal: ctn[i]
+              }),
+              grpKey: itemKey,
+              rowRef: pkgSizeRow._row,
+            });
+            break; // one error per item is enough
+          }
+        }
+      }
+    }
 
     // Filter to rows that have packaging data (component/recyccode/matpct/matwt)
     const pkgRows = rws.filter(row =>
