@@ -298,6 +298,7 @@ const L = {
     pwMissingMatPct: 'Missing material %',
     pwBadMatPct: 'Material % "{v}" is not a number',
     pwPctNot100: '"{comp}": material percentages sum to {v}% — must be 100%',
+    pwProdPctNot100: 'Product material percentages sum to {v}% — must be 100%',
     pwWeightMismatch: 'Component weights sum to {sum}g but packaging weight (GW − NW) is {pkg}g (diff {diff}g)',
     pwWeightVsNW: 'Component weights sum to {sum}g but Net Weight is {nw}g (diff {diff}g)',
     pwMissingNW: 'Missing net weight (NW)',
@@ -366,6 +367,7 @@ const L = {
     pwMissingMatPct: '缺少材料百分比',
     pwBadMatPct: '材料百分比"{v}"不是数字',
     pwPctNot100: '"{comp}"：材料百分比合计{v}% — 必须等于100%',
+    pwProdPctNot100: '产品材料百分比合计 {v}% — 必须等于100%',
     pwWeightMismatch: '组件重量合计 {sum}g，但包装重量 (GW − NW) 为 {pkg}g（差值 {diff}g）',
     pwWeightVsNW: '组件重量合计 {sum}g，但净重为 {nw}g（差值 {diff}g）',
     pwMissingNW: '缺少净重（NW）',
@@ -1284,6 +1286,25 @@ async function runPWCheck() {
             });
             break; // one error per item is enough
           }
+        }
+      }
+    }
+
+    // Product material % per item must sum to ~100%
+    const prodPctRows = rws.filter(row => row.prodmatpct && String(row.prodmatpct).trim() !== '');
+    if (prodPctRows.length > 0) {
+      const prodPcts = prodPctRows.map(row => parseFloat(row.prodmatpct)).filter(p => !isNaN(p));
+      if (prodPcts.length > 0) {
+        const isDecFmt = prodPcts.every(p => p >= 0 && p <= 1.001);
+        const normProd = isDecFmt ? prodPcts.map(p => p * 100) : prodPcts;
+        const prodSum = Math.round(normProd.reduce((a,b) => a+b, 0) * 10) / 10;
+        if (prodSum < 99 || prodSum > 101) {
+          issues.push({
+            t: 'e',
+            msg: s('pwProdPctNot100', { v: prodSum }),
+            grpKey: itemKey,
+            rowRef: firstRow._row,
+          });
         }
       }
     }
