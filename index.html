@@ -272,6 +272,7 @@ const L = {
     imgUnsupported: 'Image "{name}" could not be read — please use JPEG or PNG',
     xlsxMissing: 'The Excel library failed to load — please refresh the page (Ctrl/Cmd+Shift+R) and try again',
     aiTruncated: 'AI analysis was cut short — the AI findings above may be incomplete',
+    aiRefused: 'AI check was declined by the AI service for this content — the rule-based results above are complete',
     unknownItem: '⚠️ Missing item number',
     compositeSingle: '"{comp}" is a multi-material component and cannot consist of one single material — e.g. a cable always contains both a conductor (copper) AND insulation (PVC/PE/TPE). List every material on its own row with CAS number and concentration %.',
     lErr: 'Errors', lWarn: 'Warnings', lOk: 'Rows',
@@ -351,6 +352,7 @@ const L = {
     imgUnsupported: '图片"{name}"无法读取 — 请使用JPEG或PNG格式',
     xlsxMissing: 'Excel解析库加载失败 — 请刷新页面（Ctrl/Cmd+Shift+R）后重试',
     aiTruncated: 'AI分析被截断 — 以上AI结果可能不完整',
+    aiRefused: 'AI服务拒绝检查此内容 — 以上规则检查结果完整',
     unknownItem: '⚠️ 缺少项目号',
     compositeSingle: '"{comp}"是多材料组件，不可能仅由单一材料构成 — 例如电缆必定同时包含导体（铜）和绝缘层（PVC/PE/TPE）。请将每种材料单独一行列出，注明CAS编号和浓度%。',
     lErr: '错误', lWarn: '警告', lOk: '行',
@@ -954,7 +956,8 @@ One issue per line. No bullet points, no headers, no extra formatting.` });
 
   try {
     const data = await callAIProxy(content);
-    const text = data.content?.[0]?.text || '';
+    if (data.stop_reason === 'refusal') return [{ t: 'w', msg: '🤖 ' + s('aiRefused') }];
+    const text = aiText(data);
     const items = [];
     text.split('\n').forEach(line => {
       line = line.trim();
@@ -974,27 +977,61 @@ One issue per line. No bullet points, no headers, no extra formatting.` });
 
 // ── Shared AI-proxy helpers (used by both tabs) ──
 const AI_PROXY_URL = 'https://nohro-compliance-proxy.azurewebsites.net/api/proxy';
-const AI_TIMEOUT_MS = 60000;
+const AI_TIMEOUT_MS = 90000; // Fable 5 thinks before answering — allow longer than the old 60s
+// Fable 5: thinking is always on and counts toward max_tokens, so the budget
+// must be well above the expected visible output (1500 would starve it).
+// Never send thinking/temperature/top_p/top_k — Fable 5 rejects them with 400.
+const AI_MODEL = 'claude-fable-5';
+const AI_FALLBACK_MODEL = 'claude-sonnet-4-6';
 // AI is asked to output nothing when all is fine, but models sometimes reply
 // "No issues found" anyway — those lines must not be shown as findings.
 const AI_NO_ISSUE_RE = /^(no |none|nothing|all (good|fine|correct)|looks (good|fine)|没有|未发现|无问题|一切正常)/i;
 
-async function callAIProxy(content) {
+async function postAI(model, content) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), AI_TIMEOUT_MS);
   try {
     const resp = await fetch(AI_PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
+      body: JSON.stringify({ model, max_tokens: 4000,
+        output_config: { effort: 'low' },
         messages: [{ role: 'user', content }] }),
       signal: ctrl.signal,
     });
-    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+    if (!resp.ok) {
+      const e = await resp.json().catch(()=>({}));
+      const err = new Error(e.error?.message || `HTTP ${resp.status}`);
+      err.httpStatus = resp.status;
+      throw err;
+    }
     return await resp.json();
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function callAIProxy(content) {
+  // Fable 5 first; fall back to Sonnet when Fable declines the request
+  // (safety classifiers → stop_reason "refusal") or rejects it (4xx).
+  let data;
+  try {
+    data = await postAI(AI_MODEL, content);
+  } catch (err) {
+    if (err.httpStatus >= 400 && err.httpStatus < 500) {
+      return postAI(AI_FALLBACK_MODEL, content);
+    }
+    throw err;
+  }
+  if (data.stop_reason === 'refusal') {
+    return postAI(AI_FALLBACK_MODEL, content);
+  }
+  return data;
+}
+
+// Fable 5 responses start with a thinking block — content[0] is not the text.
+function aiText(data) {
+  return (data.content || []).find(b => b.type === 'text')?.text || '';
 }
 
 function aiErrorItem(err) {
@@ -1002,8 +1039,8 @@ function aiErrorItem(err) {
   const networkErr = /fetch|network|failed to fetch/i.test(err.message);
   const msg = timedOut
     ? (lang === 'zh'
-        ? '🤖 AI检查超时（60秒）— 以上规则检查结果完整'
-        : '🤖 AI check timed out (60s) — the rule-based results above are complete')
+        ? `🤖 AI检查超时（${AI_TIMEOUT_MS / 1000}秒）— 以上规则检查结果完整`
+        : `🤖 AI check timed out (${AI_TIMEOUT_MS / 1000}s) — the rule-based results above are complete`)
     : networkErr
       ? (lang === 'zh'
           ? '🤖 AI检查不可用 — 无法连接AI服务（网络或代理服务问题）。以上规则检查结果完整'
@@ -1551,7 +1588,8 @@ One issue per line. No bullet points, no headers, no extra formatting.` }];
 
   try {
     const data = await callAIProxy(content);
-    const text = data.content?.[0]?.text || '';
+    if (data.stop_reason === 'refusal') return [{ t: 'w', msg: '🤖 ' + s('aiRefused') }];
+    const text = aiText(data);
     const items = [];
     text.split('\n').forEach(line => {
       line = line.trim();

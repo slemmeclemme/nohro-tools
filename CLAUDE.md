@@ -19,7 +19,7 @@ Validates Bill of Materials / Bill of Substances Excel files. Checks CAS numbers
 ### Tab 2: Packaging Paperwork Check
 Validates packaging paperwork Excel files against Nohro's template. Two phases:
 1. **Rule-based checks** (instant): field completeness, recycling codes, material% sums, weight consistency, dimension fit, PVC policy, battery requirements
-2. **AI check** (Claude claude-sonnet-4-6 via proxy): deeper contextual analysis
+2. **AI check** (Claude `claude-fable-5` via proxy, automatic fallback to `claude-sonnet-4-6` on refusal/4xx): deeper contextual analysis
 
 ## Template Layout (current version)
 
@@ -85,6 +85,7 @@ UI supports English and Chinese (simplified). Language strings are in the `L` ob
 - **Weights**: `parseWt` understands "g" and "kg" suffixes and comma decimals; kg is converted to grams.
 - **Recycling codes**: input is normalised (`normRecycCode`: parens→space, letter/digit split, leading zeros stripped) before lookup, so "PAP(20)"/"PET (01)" pass.
 - **Photos**: downscaled to max 1568px JPEG in-browser before AI upload (API rejects images >5MB; also converts HEIC where the browser can decode it).
-- **AI proxy calls**: shared `callAIProxy()` with 60s AbortController timeout; "No issues found"-style AI lines are filtered (`AI_NO_ISSUE_RE`); `stop_reason: max_tokens` appends a truncation notice.
+- **AI proxy calls**: shared `callAIProxy()` with 90s AbortController timeout; "No issues found"-style AI lines are filtered (`AI_NO_ISSUE_RE`); `stop_reason: max_tokens` appends a truncation notice.
+- **Fable 5 specifics**: NEVER send `thinking`/`temperature`/`top_p`/`top_k` (400 on fable-5); `max_tokens: 4000` because always-on thinking counts toward it; text is read via `aiText()` (`content.find(type === 'text')` — `content[0]` is a thinking block); `stop_reason: "refusal"` and 4xx auto-fall back to `claude-sonnet-4-6`; `output_config: {effort: 'low'}` keeps latency/cost down.
 - **Row cap**: parsing caps at 5000 rows (stray formatting can blow up `!ref`); the debug panel shows when capped.
 - **Rule messages are escaped**: `s()` HTML-escapes interpolated vars (cell content goes into innerHTML).
