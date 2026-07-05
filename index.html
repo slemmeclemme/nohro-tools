@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nohro Compliance Tools</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="xlsx.full.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -178,8 +178,8 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
 </header>
 
 <div class="tabs">
-  <button class="tab-btn active" id="tab-btn-bom" onclick="showTab('bom')" id="tbom">🔬 BOM/BOS Check</button>
-  <button class="tab-btn"        id="tab-btn-pw"  onclick="showTab('pw')"  id="tpw">📦 Packaging Paperwork</button>
+  <button class="tab-btn active" id="tab-btn-bom" onclick="showTab('bom')">🔬 BOM/BOS Check</button>
+  <button class="tab-btn"        id="tab-btn-pw"  onclick="showTab('pw')">📦 Packaging Paperwork</button>
 </div>
 
 <!-- ══════════════ TAB 1: BOM/BOS ══════════════ -->
@@ -264,6 +264,16 @@ const L = {
     'pwfz-sub': '.xlsx — Packaging_Paperwork_Template',
     btnTxt: '🔍 Run Check',
     pwBtnTxt: '🔍 Run Check',
+    newCheck: '🔄 New Check',
+    analysing: '⏳ Analysing…',
+    tabBom: '🔬 BOM/BOS Check',
+    tabPw: '📦 Packaging Paperwork',
+    parseFail: 'Could not read the Excel file — please check that it is a valid .xlsx/.xls file.',
+    imgUnsupported: 'Image "{name}" could not be read — please use JPEG or PNG',
+    xlsxMissing: 'The Excel library failed to load — please refresh the page (Ctrl/Cmd+Shift+R) and try again',
+    aiTruncated: 'AI analysis was cut short — the AI findings above may be incomplete',
+    unknownItem: '⚠️ Missing item number',
+    compositeSingle: '"{comp}" is a multi-material component and cannot consist of one single material — e.g. a cable always contains both a conductor (copper) AND insulation (PVC/PE/TPE). List every material on its own row with CAS number and concentration %.',
     lErr: 'Errors', lWarn: 'Warnings', lOk: 'Rows',
     pwLErr: 'Errors', pwLWarn: 'Warnings', pwLOk: 'Items',
     irTitle: 'Image Review — does the photo match the BOM?',
@@ -300,7 +310,6 @@ const L = {
     pwPctNot100: '"{comp}": material percentages sum to {v}% — must be 100%',
     pwProdPctNot100: 'Product material percentages sum to {v}% — must be 100%',
     pwWeightMismatch: 'Component weights sum to {sum}g but packaging weight (GW − NW) is {pkg}g (diff {diff}g)',
-    pwWeightVsNW: 'Component weights sum to {sum}g but Net Weight is {nw}g (diff {diff}g)',
     pwMissingNW: 'Missing net weight (NW)',
     pwMissingGW: 'Missing gross weight (GW)',
     pwMissingProdSize: 'Missing product size',
@@ -334,6 +343,16 @@ const L = {
     'pwfz-sub': '.xlsx — Packaging_Paperwork_Template',
     btnTxt: '🔍 开始检查',
     pwBtnTxt: '🔍 开始检查',
+    newCheck: '🔄 重新检查',
+    analysing: '⏳ 分析中…',
+    tabBom: '🔬 BOM/BOS检查',
+    tabPw: '📦 包装文件检查',
+    parseFail: '无法读取Excel文件 — 请确认文件为有效的.xlsx/.xls格式。',
+    imgUnsupported: '图片"{name}"无法读取 — 请使用JPEG或PNG格式',
+    xlsxMissing: 'Excel解析库加载失败 — 请刷新页面（Ctrl/Cmd+Shift+R）后重试',
+    aiTruncated: 'AI分析被截断 — 以上AI结果可能不完整',
+    unknownItem: '⚠️ 缺少项目号',
+    compositeSingle: '"{comp}"是多材料组件，不可能仅由单一材料构成 — 例如电缆必定同时包含导体（铜）和绝缘层（PVC/PE/TPE）。请将每种材料单独一行列出，注明CAS编号和浓度%。',
     lErr: '错误', lWarn: '警告', lOk: '行',
     pwLErr: '错误', pwLWarn: '警告', pwLOk: '项目',
     irTitle: '图片核查 — 图片与BOM是否一致？',
@@ -369,7 +388,6 @@ const L = {
     pwPctNot100: '"{comp}"：材料百分比合计{v}% — 必须等于100%',
     pwProdPctNot100: '产品材料百分比合计 {v}% — 必须等于100%',
     pwWeightMismatch: '组件重量合计 {sum}g，但包装重量 (GW − NW) 为 {pkg}g（差值 {diff}g）',
-    pwWeightVsNW: '组件重量合计 {sum}g，但净重为 {nw}g（差值 {diff}g）',
     pwMissingNW: '缺少净重（NW）',
     pwMissingGW: '缺少毛重（GW）',
     pwMissingProdSize: '缺少产品尺寸',
@@ -396,7 +414,9 @@ const L = {
 
 function s(k, vars) {
   let str = (L[lang][k] || L.en[k] || k);
-  if (vars) str = str.replace(/\{(\w+)\}/g, (_, x) => vars[x] ?? `{${x}}`);
+  // Interpolated values often come straight from spreadsheet cells and the
+  // result is rendered via innerHTML — escape them.
+  if (vars) str = str.replace(/\{(\w+)\}/g, (_, x) => esc(vars[x] ?? `{${x}}`));
   return str;
 }
 
@@ -404,11 +424,18 @@ function setLang(l) {
   lang = l;
   document.querySelectorAll('.lang button').forEach((b,i) => b.classList.toggle('on', (i===0&&l==='en')||(i===1&&l==='zh')));
   document.querySelector('html').lang = l === 'zh' ? 'zh-CN' : 'en';
-  ['ht','hs','fz-main','fz-sub','iz-main','iz-sub','pwfz-main','pwfz-sub','btnTxt','pwBtnTxt',
+  ['ht','hs','fz-main','fz-sub','iz-main','iz-sub','pwfz-main','pwfz-sub',
    'lErr','lWarn','lOk','pwLErr','pwLWarn','pwLOk','irTitle'].forEach(k => {
     const el = document.getElementById(k);
     if (el) el.textContent = s(k);
   });
+  document.getElementById('tab-btn-bom').textContent = s('tabBom');
+  document.getElementById('tab-btn-pw').textContent  = s('tabPw');
+  // Check buttons keep their current mode (Run Check vs New Check) across language switch
+  document.getElementById('btnTxt').textContent =
+    document.getElementById('checkBtn').classList.contains('new-check-mode') ? s('newCheck') : s('btnTxt');
+  document.getElementById('pwBtnTxt').textContent =
+    document.getElementById('pwCheckBtn').classList.contains('new-check-mode') ? s('newCheck') : s('pwBtnTxt');
   if (rows.length) updateFileZone();
   if (imgs.length)  updateImgZone();
   if (pwRows.length) updatePWFileZone();
@@ -429,6 +456,11 @@ function isBlankGlobal(v) {
   if (!v) return true;
   return /^[-–—?\/]+$/.test(v.trim()) || /^(n\/a|na|tbd|unknown|pending|none|nil)$/i.test(v.trim());
 }
+
+// Exact yes/no matching — a leftover template placeholder like "Yes/No" must
+// NOT count as "Yes" (prefix matching previously caused false PVC errors).
+function isYesVal(v) { return /^(yes|y|是)[\s.!]*$/i.test(String(v).trim()); }
+function isNoVal(v)  { return /^(no|n|否)[\s.!]*$/i.test(String(v).trim()); }
 
 // Shared drag&drop
 function setupDrop(zoneId, handler) {
@@ -561,6 +593,7 @@ function detectCols(headers) {
 
 function loadFile(file) {
   if (!file) return;
+  if (typeof XLSX === 'undefined') { alert(s('xlsxMissing')); return; }
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -572,6 +605,10 @@ function loadFile(file) {
       else { const any = wb.SheetNames.find(n => /bom|bos/i.test(n)); if (any) sn = any; }
       const ws = wb.Sheets[sn];
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // Cap rows — stray formatting can extend !ref by hundreds of thousands
+      // of empty rows and freeze the browser.
+      const capped = raw.length > 5000;
+      if (capped) raw.length = 5000;
       // Expand merged cells so every row in a merge inherits the top-left value.
       if (ws['!merges']) {
         for (const m of ws['!merges']) {
@@ -630,11 +667,11 @@ function loadFile(file) {
         headerText: (raw[hi] || []).map(String).filter(Boolean).slice(0,6).join(' | '),
         colsFound: detectedFields.length,
         colList: detectedFields.join(', ') || '— none —',
-        rawScanned, skipped, filtered, included: rows.length,
+        rawScanned, skipped, filtered, included: rows.length, capped,
       };
       updateFileZone();
     } catch(err) {
-      alert('Failed to parse file — please check the format\n\n' + err);
+      alert(s('parseFail') + '\n\n' + err);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -651,11 +688,12 @@ function updateFileZone() {
     const rowColor = d.included > 0 ? '#15803d' : '#dc2626';
     dbg.style.display = 'block';
     dbg.innerHTML =
-      `<b>Sheet:</b> ${d.sheet} &nbsp;|&nbsp; <b>All sheets:</b> ${d.sheets}<br>` +
-      `<b>Header row:</b> ${d.headerRow} — <i>${d.headerText || '(empty)'}</i><br>` +
-      `<b>Columns (${d.colsFound}):</b> ${d.colList}<br>` +
+      `<b>Sheet:</b> ${esc(d.sheet)} &nbsp;|&nbsp; <b>All sheets:</b> ${esc(d.sheets)}<br>` +
+      `<b>Header row:</b> ${d.headerRow} — <i>${esc(d.headerText) || '(empty)'}</i><br>` +
+      `<b>Columns (${d.colsFound}):</b> ${esc(d.colList)}<br>` +
       `<b>Rows:</b> scanned ${d.rawScanned}, skipped ${d.skipped}, filtered ${d.filtered}, ` +
-      `<b style="color:${rowColor}">included ${d.included}</b>`;
+      `<b style="color:${rowColor}">included ${d.included}</b>` +
+      (d.capped ? ' <b style="color:#dc2626">(capped at 5000 rows)</b>' : '');
   }
 }
 
@@ -668,7 +706,11 @@ function resetBOM() {
   document.getElementById('fileIn').value = '';
   document.getElementById('debugInfo').style.display = 'none';
   document.getElementById('imgPreviews').innerHTML = '';
-  updateImgZone();
+  // Restore image zone to its initial (empty) state
+  document.getElementById('imgZone').classList.remove('done');
+  document.getElementById('iz-main').textContent = s('iz-main');
+  document.getElementById('iz-sub').textContent = s('iz-sub');
+  document.getElementById('imgIn').value = '';
   document.getElementById('bomResults').style.display = 'none';
   // Restore Run Check button
   const btn = document.getElementById('checkBtn');
@@ -678,12 +720,36 @@ function resetBOM() {
   btnTxt.textContent = s('btnTxt');
 }
 
-function loadImages(files) {
-  Array.from(files).forEach(f => {
-    const r = new FileReader();
-    r.onload = e => { imgs.push(e.target.result); renderThumbs(); updateImgZone(); };
-    r.readAsDataURL(f);
+// Downscale to max 1568px and re-encode as JPEG: keeps every photo under the
+// AI API's 5MB image limit, converts HEIC (when the browser can decode it),
+// and keeps request bodies small on slow connections.
+function downscaleImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1568;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width  = Math.max(1, Math.round(img.width  * scale));
+      cv.height = Math.max(1, Math.round(img.height * scale));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(file.name)); };
+    img.src = url;
   });
+}
+
+async function loadImages(files) {
+  // Sequential so thumbnails keep the order the user selected
+  for (const f of Array.from(files)) {
+    try { imgs.push(await downscaleImage(f)); }
+    catch { alert(s('imgUnsupported', { name: f.name })); }
+  }
+  if (imgs.length) { renderThumbs(); updateImgZone(); }
+  document.getElementById('imgIn').value = '';
 }
 function renderThumbs() {
   const p = document.getElementById('imgPreviews');
@@ -736,82 +802,106 @@ function parseConcField(v) {
   return { isRange: false, sum, substanceCount };
 }
 
+// Components that physically ALWAYS consist of multiple materials —
+// a single-material declaration for these is impossible (e.g. a cable
+// is never 100% copper: it also has insulation).
+const COMPOSITE_RE = /\b(cable|wire|cord|zipper|pcb|circuit board|motor|switch|plug|speaker|battery|led module)\b|电线|电缆|线材|数据线|充电线|拉链|电路板|线路板|电机|马达|开关|插头|扬声器|喇叭|电池/i;
+
 async function runCheck() {
   const btn = document.getElementById('checkBtn');
   const btnTxt = document.getElementById('btnTxt');
-  if (!rows.length) { renderAll([{ t: 'e', msg: s('noFile') }]); return; }
+  if (!rows.length) { renderAll([{ t: 'e', msg: s('noFile') }], { noFlip: true }); return; }
   btn.disabled = true;
-  btnTxt.textContent = lang === 'zh' ? '⏳ 分析中…' : '⏳ Analysing…';
+  btnTxt.textContent = s('analysing');
   document.getElementById('bomResults').style.display = 'none';
 
-  const issues = [];
-  function isBlank(v) { return isBlankGlobal(v); }
+  try {
+    const issues = [];
+    function isBlank(v) { return isBlankGlobal(v); }
 
-  rows.forEach(row => {
-    const r = row._row;
-    const c = [row.product, row.component].filter(Boolean).join(' — ') || '?';
-    const gk = String(r); // group key = row number
+    rows.forEach(row => {
+      const r = row._row;
+      const c = [row.product, row.component].filter(Boolean).join(' — ') || '?';
+      const gk = String(r); // group key = row number
 
-    if (!row.component) issues.push({ t: 'e', msg: s('missingComp'), grpKey: gk, rowRef: r });
-    if (!row.material)  issues.push({ t: 'e', msg: s('missingMat'),  grpKey: gk, rowRef: r });
-    if (!row.substance) issues.push({ t: 'e', msg: s('missingSub'),  grpKey: gk, rowRef: r });
+      if (!row.component) issues.push({ t: 'e', msg: s('missingComp'), grpKey: gk, rowRef: r });
+      if (!row.material)  issues.push({ t: 'e', msg: s('missingMat'),  grpKey: gk, rowRef: r });
+      if (!row.substance) issues.push({ t: 'e', msg: s('missingSub'),  grpKey: gk, rowRef: r });
 
-    if (isBlank(row.cas)) {
-      issues.push({ t: 'w', msg: s('missingCAS'), grpKey: gk, rowRef: r });
-    } else if (!validCAS(row.cas)) {
-      issues.push({ t: 'e', msg: s('badCAS', {v: row.cas}), grpKey: gk, rowRef: r });
-    } else {
-      casParts(row.cas).forEach(cas => {
-        const hit = CONCERN[cas];
-        if (hit) issues.push({ t: 'e', msg: s('svhcHit', {sub: hit, cas}), grpKey: gk, rowRef: r });
-      });
-    }
-
-    // TPR / material-family guidance
-    const matConc = [row.material, row.conc, row.substance].join(' ');
-    if (/\btpr\b|thermoplastic.?rubber|热塑性橡胶/i.test(matConc)) {
-      issues.push({ t: 'e', msg: s('tprGuide'), grpKey: gk, rowRef: r });
-    }
-
-    if (isBlank(row.conc)) {
-      issues.push({ t: 'w', msg: s('missingConc'), grpKey: gk, rowRef: r });
-    } else {
-      const conc = parseConcField(row.conc);
-      if (conc?.noPercent) {
-        issues.push({ t: 'w', msg: s('concNoPercent'), grpKey: gk, rowRef: r });
-        const casN = casParts(row.cas).length;
-        const matN = countMaterials(row.conc);
-        if (casN > 0 && matN > 1 && casN !== matN)
-          issues.push({ t: 'w', msg: s('casCountMismatch', {k: matN, l: casN}), grpKey: gk, rowRef: r });
-      } else if (conc && !conc.isRange) {
-        if (conc.sum > 105) issues.push({ t: 'e', msg: s('over100', {v: conc.sum}), grpKey: gk, rowRef: r });
-        else if (conc.sum < 95) issues.push({ t: 'w', msg: s('concNot100', {v: conc.sum}), grpKey: gk, rowRef: r });
-        const casN = casParts(row.cas).length;
-        if (casN > 0 && casN !== conc.substanceCount)
-          issues.push({ t: 'w', msg: s('casCountMismatch', {k: conc.substanceCount, l: casN}), grpKey: gk, rowRef: r });
-      } else if (conc?.isRange) {
-        const casN = casParts(row.cas).length;
-        if (casN > 0 && casN !== conc.substanceCount)
-          issues.push({ t: 'w', msg: s('casCountMismatch', {k: conc.substanceCount, l: casN}), grpKey: gk, rowRef: r });
+      if (isBlank(row.cas)) {
+        issues.push({ t: 'w', msg: s('missingCAS'), grpKey: gk, rowRef: r });
+      } else if (!validCAS(row.cas)) {
+        issues.push({ t: 'e', msg: s('badCAS', {v: row.cas}), grpKey: gk, rowRef: r });
+      } else {
+        casParts(row.cas).forEach(cas => {
+          const hit = CONCERN[cas];
+          if (hit) issues.push({ t: 'e', msg: s('svhcHit', {sub: hit, cas}), grpKey: gk, rowRef: r });
+        });
       }
+
+      // TPR / material-family guidance
+      const matConc = [row.material, row.conc, row.substance].join(' ');
+      if (/\btpr\b|thermoplastic.?rubber|热塑性橡胶/i.test(matConc)) {
+        issues.push({ t: 'e', msg: s('tprGuide'), grpKey: gk, rowRef: r });
+      }
+
+      if (isBlank(row.conc)) {
+        issues.push({ t: 'w', msg: s('missingConc'), grpKey: gk, rowRef: r });
+      } else {
+        const conc = parseConcField(row.conc);
+        if (conc?.noPercent) {
+          issues.push({ t: 'w', msg: s('concNoPercent'), grpKey: gk, rowRef: r });
+          const casN = casParts(row.cas).length;
+          const matN = countMaterials(row.conc);
+          if (casN > 0 && matN > 1 && casN !== matN)
+            issues.push({ t: 'w', msg: s('casCountMismatch', {k: matN, l: casN}), grpKey: gk, rowRef: r });
+        } else if (conc && !conc.isRange) {
+          if (conc.sum > 105) issues.push({ t: 'e', msg: s('over100', {v: conc.sum}), grpKey: gk, rowRef: r });
+          else if (conc.sum < 95) issues.push({ t: 'w', msg: s('concNot100', {v: conc.sum}), grpKey: gk, rowRef: r });
+          const casN = casParts(row.cas).length;
+          if (casN > 0 && casN !== conc.substanceCount)
+            issues.push({ t: 'w', msg: s('casCountMismatch', {k: conc.substanceCount, l: casN}), grpKey: gk, rowRef: r });
+        } else if (conc?.isRange) {
+          const casN = casParts(row.cas).length;
+          if (casN > 0 && casN !== conc.substanceCount)
+            issues.push({ t: 'w', msg: s('casCountMismatch', {k: conc.substanceCount, l: casN}), grpKey: gk, rowRef: r });
+        }
+      }
+
+      if (isBlank(row.reach)) issues.push({ t: 'w', msg: s('missingREACH'), grpKey: gk, rowRef: r });
+      if (isBlank(row.decl))  issues.push({ t: 'w', msg: s('missingDecl'),  grpKey: gk, rowRef: r });
+      else if (/generic|general|通用|一般/i.test(row.decl))
+        issues.push({ t: 'w', msg: s('genericDecl'), grpKey: gk, rowRef: r });
+
+      if ((/black|黑/i.test(c) && /abs|pp|pe|plastic|pvc|塑料/i.test(row.material || '')) ||
+          /carbon.?black|炭黑/i.test(row.substance || ''))
+        issues.push({ t: 'w', msg: s('blackPlastic'), grpKey: gk, rowRef: r });
+    });
+
+    // Composite components declared as a single material (plausibility check)
+    const compGroups = {};
+    rows.forEach(row => {
+      const k = (row.product || '') + '||' + (row.component || '');
+      (compGroups[k] = compGroups[k] || []).push(row);
+    });
+    for (const grp of Object.values(compGroups)) {
+      const comp = grp[0].component;
+      if (!comp || !COMPOSITE_RE.test(comp)) continue;
+      const matCount = grp.reduce((n, row) => n + countMaterials(row.substance || row.material), 0);
+      if (matCount === 1)
+        issues.push({ t: 'e', msg: s('compositeSingle', { comp }), grpKey: String(grp[0]._row), rowRef: grp[0]._row });
     }
 
-    if (isBlank(row.reach)) issues.push({ t: 'w', msg: s('missingREACH'), grpKey: gk, rowRef: r });
-    if (isBlank(row.decl))  issues.push({ t: 'w', msg: s('missingDecl'),  grpKey: gk, rowRef: r });
-    else if (/generic|general|通用|一般/i.test(row.decl))
-      issues.push({ t: 'w', msg: s('genericDecl'), grpKey: gk, rowRef: r });
+    if (!imgs.length) issues.push({ t: 'w', msg: s('noImg') });
 
-    if (/black|黑/i.test(c) && /abs|pp|pe|plastic|pvc|塑料/i.test(row.material || ''))
-      issues.push({ t: 'w', msg: s('blackPlastic'), grpKey: gk, rowRef: r });
-    if (/carbon.?black|炭黑/i.test(row.substance || ''))
-      issues.push({ t: 'w', msg: s('blackPlastic'), grpKey: gk, rowRef: r });
-  });
-
-  if (!imgs.length) issues.push({ t: 'w', msg: s('noImg') });
-
-  const aiItems = await fetchBOMAIItems();
-  renderAll([...issues, ...aiItems]);
-  btn.disabled = false;
+    const aiItems = await fetchBOMAIItems();
+    renderAll([...issues, ...aiItems]);
+  } catch (err) {
+    btnTxt.textContent = s('btnTxt');
+    alert((lang === 'zh' ? '检查失败：' : 'Check failed: ') + err);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function fetchBOMAIItems() {
@@ -839,15 +929,16 @@ ${bomText}
 
 Respond in ${lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.
 
-You may ONLY flag an issue if ONE of these three conditions is clearly and certainly true:
+You may ONLY flag an issue if ONE of these four conditions is clearly and certainly true:
 1. A required field is blank or missing (e.g. no CAS number, no concentration, no substance name)
 2. The CAS number given does not match the stated substance — i.e. you are certain the CAS belongs to a different chemical than what is written
 3. The stated material or CAS number is clearly inconsistent with the component it is listed under — i.e. it looks like a data entry error
+4. The declared composition is physically impossible for the component — e.g. a cable declared as 100% copper (a cable always also contains insulation), a zipper or PCB declared as one single material. Only flag this when the component by its nature MUST contain the missing material — never for speculative additives.
 
 Do NOT flag:
 - Speculative risks ("may contain", "could trigger", "might require")
 - General regulatory requirements (GPSR, EN71, test obligations, operator markings)
-- Concerns about what additives might be present but are not declared
+- Concerns about optional additives that might be present but are not declared (structurally REQUIRED materials per condition 4 are the exception)
 - Product classification opinions
 - Anything that is not a clear factual error or definite gap in the data itself
 
@@ -862,16 +953,7 @@ General: [issue description]
 One issue per line. No bullet points, no headers, no extra formatting.` });
 
   try {
-    const resp = await fetch('https://nohro-compliance-proxy.azurewebsites.net/api/proxy', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
-        messages: [{ role: 'user', content }] })
-    });
-    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
-    const data = await resp.json();
+    const data = await callAIProxy(content);
     const text = data.content?.[0]?.text || '';
     const items = [];
     text.split('\n').forEach(line => {
@@ -881,21 +963,56 @@ One issue per line. No bullet points, no headers, no extra formatting.` });
       if (rowMatch) { items.push({ t: 'ai', grpKey: rowMatch[1], rowRef: parseInt(rowMatch[1],10), msg: esc(rowMatch[2]) }); return; }
       const genMatch = line.match(/^General\s*:\s*(.+)/i);
       if (genMatch) { items.push({ t: 'ai', msg: esc(genMatch[1]) }); return; }
-      if (line.length > 5) items.push({ t: 'ai', msg: esc(line) });
+      if (line.length > 5 && !AI_NO_ISSUE_RE.test(line)) items.push({ t: 'ai', msg: esc(line) });
     });
+    if (data.stop_reason === 'max_tokens') items.push({ t: 'ai', msg: '🤖 ' + s('aiTruncated') });
     return items;
   } catch(err) {
-    const networkErr = /fetch|network|failed to fetch/i.test(err.message);
-    const msg = networkErr
-      ? (lang === 'zh'
-          ? '🤖 AI检查不可用 — 无法连接AI服务（api.anthropic.com可能在此网络中受限）'
-          : '🤖 AI check unavailable — could not reach AI service (api.anthropic.com may be blocked on this network)')
-      : `🤖 AI check failed: ${esc(err.message)}`;
-    return [{ t: 'w', msg }];
+    return [aiErrorItem(err)];
   }
 }
 
-function renderAll(items) {
+// ── Shared AI-proxy helpers (used by both tabs) ──
+const AI_PROXY_URL = 'https://nohro-compliance-proxy.azurewebsites.net/api/proxy';
+const AI_TIMEOUT_MS = 60000;
+// AI is asked to output nothing when all is fine, but models sometimes reply
+// "No issues found" anyway — those lines must not be shown as findings.
+const AI_NO_ISSUE_RE = /^(no |none|nothing|all (good|fine|correct)|looks (good|fine)|没有|未发现|无问题|一切正常)/i;
+
+async function callAIProxy(content) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), AI_TIMEOUT_MS);
+  try {
+    const resp = await fetch(AI_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
+        messages: [{ role: 'user', content }] }),
+      signal: ctrl.signal,
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+    return await resp.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function aiErrorItem(err) {
+  const timedOut = err.name === 'AbortError';
+  const networkErr = /fetch|network|failed to fetch/i.test(err.message);
+  const msg = timedOut
+    ? (lang === 'zh'
+        ? '🤖 AI检查超时（60秒）— 以上规则检查结果完整'
+        : '🤖 AI check timed out (60s) — the rule-based results above are complete')
+    : networkErr
+      ? (lang === 'zh'
+          ? '🤖 AI检查不可用 — 无法连接AI服务（网络或代理服务问题）。以上规则检查结果完整'
+          : '🤖 AI check unavailable — could not reach the AI service (network or proxy issue). The rule-based results above are complete')
+      : `🤖 AI check failed: ${esc(err.message)}`;
+  return { t: 'w', msg };
+}
+
+function renderAll(items, opts = {}) {
   renderByRow(
     items,
     'issueList',
@@ -927,12 +1044,15 @@ function renderAll(items) {
     ir.style.display = 'none';
   }
 
-  // Flip Run Check button → New Check
-  const btn = document.getElementById('checkBtn');
-  const btnTxt = document.getElementById('btnTxt');
-  btn.classList.add('new-check-mode');
-  btn.onclick = resetBOM;
-  btnTxt.textContent = lang === 'zh' ? '🔄 Nyt tjek' : '🔄 New Check';
+  // Flip Run Check button → New Check (skipped for the "no file" error,
+  // so a subsequent upload + click doesn't wipe the freshly loaded file)
+  if (!opts.noFlip) {
+    const btn = document.getElementById('checkBtn');
+    const btnTxt = document.getElementById('btnTxt');
+    btn.classList.add('new-check-mode');
+    btn.onclick = resetBOM;
+    btnTxt.textContent = s('newCheck');
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -984,9 +1104,20 @@ const VALID_RECYCLING_CODES = [
   'no label','no label required',
 ];
 
+// Normalise spelling variants before lookup so "PAP(20)", "PET (01)" or
+// "pp05" match the canonical codes instead of producing false errors.
+function normRecycCode(v) {
+  return String(v).toLowerCase()
+    .replace(/[()（）]/g, ' ')
+    .replace(/([a-z])(\d)/g, '$1 $2')
+    .replace(/\b0+(\d)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+const VALID_RECYCLING_SET = new Set(VALID_RECYCLING_CODES.map(normRecycCode));
 function isValidRecyclingCode(v) {
   if (!v) return false;
-  return VALID_RECYCLING_CODES.includes(v.toLowerCase().trim());
+  return VALID_RECYCLING_SET.has(normRecycCode(v));
 }
 
 const PW_SKIP = [
@@ -1025,6 +1156,7 @@ function detectPWCols(headers) {
 
 function loadPWFile(file) {
   if (!file) return;
+  if (typeof XLSX === 'undefined') { alert(s('xlsxMissing')); return; }
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -1036,6 +1168,10 @@ function loadPWFile(file) {
       else { const any = wb.SheetNames.find(n => /paper|packaging|pack/i.test(n)); if (any) sn = any; }
       const ws = wb.Sheets[sn];
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // Cap rows — stray formatting can extend !ref by hundreds of thousands
+      // of empty rows and freeze the browser.
+      const capped = raw.length > 5000;
+      if (capped) raw.length = 5000;
       // Expand merged cells so every row in a merge inherits the top-left value.
       // Master Carton Info is typically merged across all component rows of an item.
       if (ws['!merges']) {
@@ -1094,11 +1230,11 @@ function loadPWFile(file) {
         colsFound: detectedFields.length,
         colList: detectedFields.join(', ') || '— none —',
         rawScanned, skipped, filtered,
-        included: pwRows.length, items: itemNos.length,
+        included: pwRows.length, items: itemNos.length, capped,
       };
       updatePWFileZone();
     } catch(err) {
-      alert('Failed to parse packaging file — ' + err);
+      alert(s('parseFail') + '\n\n' + err);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -1116,11 +1252,12 @@ function updatePWFileZone() {
     const col = d.included > 0 ? '#15803d' : '#dc2626';
     dbg.style.display = 'block';
     dbg.innerHTML =
-      `<b>Sheet:</b> ${d.sheet} &nbsp;|&nbsp; <b>All sheets:</b> ${d.sheets}<br>` +
-      `<b>Header row:</b> ${d.headerRow} — <i>${d.headerText || '(empty)'}</i><br>` +
-      `<b>Columns (${d.colsFound}):</b> ${d.colList}<br>` +
+      `<b>Sheet:</b> ${esc(d.sheet)} &nbsp;|&nbsp; <b>All sheets:</b> ${esc(d.sheets)}<br>` +
+      `<b>Header row:</b> ${d.headerRow} — <i>${esc(d.headerText) || '(empty)'}</i><br>` +
+      `<b>Columns (${d.colsFound}):</b> ${esc(d.colList)}<br>` +
       `<b>Rows:</b> scanned ${d.rawScanned}, skipped ${d.skipped}, filtered ${d.filtered}, ` +
-      `<b style="color:${col}">included ${d.included}</b> across ${d.items} item(s)`;
+      `<b style="color:${col}">included ${d.included}</b> across ${d.items} item(s)` +
+      (d.capped ? ' <b style="color:#dc2626">(capped at 5000 rows)</b>' : '');
   }
 }
 
@@ -1144,11 +1281,25 @@ function resetPW() {
 async function runPWCheck() {
   const btn = document.getElementById('pwCheckBtn');
   const btnTxt = document.getElementById('pwBtnTxt');
-  if (!pwRows.length) { renderAllPW([{ t: 'e', msg: s('pwNoFile') }]); return; }
+  if (!pwRows.length) { renderAllPW([{ t: 'e', msg: s('pwNoFile') }], { noFlip: true }); return; }
   btn.disabled = true;
-  btnTxt.textContent = lang === 'zh' ? '⏳ 分析中…' : '⏳ Analysing…';
+  btnTxt.textContent = s('analysing');
   document.getElementById('pwResults').style.display = 'none';
 
+  try {
+    const issues = collectPWIssues();
+    const aiItems = await fetchPWAIItems();
+    renderAllPW([...issues, ...aiItems]);
+  } catch (err) {
+    btnTxt.textContent = s('pwBtnTxt');
+    alert((lang === 'zh' ? '检查失败：' : 'Check failed: ') + err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// All rule-based paperwork checks — returns the list of issues
+function collectPWIssues() {
   const issues = [];
 
   // Group rows by item number
@@ -1221,19 +1372,19 @@ async function runPWCheck() {
     const pvcRow = anyRowWith(rws, 'pvc');
     if (!pvcRow) {
       issues.push({ t: 'w', msg: s('pwMissingPVC'), grpKey: itemKey, rowRef: r });
-    } else if (!/^(yes|no|是|否)/i.test(pvcRow.pvc.trim())) {
-      issues.push({ t: 'w', msg: s('pwBadPVC', {v: pvcRow.pvc}), grpKey: itemKey, rowRef: pvcRow._row });
-    } else if (/^(yes|是)/i.test(pvcRow.pvc.trim())) {
+    } else if (isYesVal(pvcRow.pvc)) {
       issues.push({ t: 'e', msg: s('pwPVCNotAllowed'), grpKey: itemKey, rowRef: pvcRow._row });
+    } else if (!isNoVal(pvcRow.pvc)) {
+      issues.push({ t: 'w', msg: s('pwBadPVC', {v: pvcRow.pvc}), grpKey: itemKey, rowRef: pvcRow._row });
     }
 
     // Batteries — if Yes, require type, pcs, changeable, weight
     const batRow = anyRowWith(rws, 'batteries');
     if (!batRow) {
       issues.push({ t: 'w', msg: s('pwMissingBat'), grpKey: itemKey, rowRef: r });
-    } else if (!/^(yes|no|是|否)/i.test(batRow.batteries.trim())) {
+    } else if (!isYesVal(batRow.batteries) && !isNoVal(batRow.batteries)) {
       issues.push({ t: 'w', msg: s('pwBadBat', {v: batRow.batteries}), grpKey: itemKey, rowRef: batRow._row });
-    } else if (/^(yes|是)/i.test(batRow.batteries.trim())) {
+    } else if (isYesVal(batRow.batteries)) {
       const bRef = batRow._row;
       if (!anyHas(rws, 'battype'))
         issues.push({ t: 'e', msg: s('pwMissingBatType'), grpKey: itemKey, rowRef: bRef });
@@ -1272,7 +1423,7 @@ async function runPWCheck() {
       const pkg = parseDims(pkgSizeRow.pkgsize);
       const ctn = parseDims(ctnSizeRow.cartonsize);
       if (pkg && ctn) {
-        const axes = ['longest','middle','shortest'];
+        const axes = lang === 'zh' ? ['最长','中间','最短'] : ['longest','middle','shortest'];
         for (let i = 0; i < Math.min(pkg.length, ctn.length); i++) {
           if (pkg[i] > ctn[i] + 0.5) { // 0.5cm tolerance
             issues.push({
@@ -1333,11 +1484,14 @@ async function runPWCheck() {
       }
     }
 
-    // Parse weight values — handles Danish comma decimals and trailing "g"/"G" suffix
+    // Parse weight values — handles comma decimals and "g"/"kg" suffixes
+    // (a "1.2kg" cell must become 1200, not 1.2)
     const parseWt = v => {
       if (v === null || v === undefined) return NaN;
-      const cleaned = String(v).replace(/[gG\s]/g, '').replace(',', '.');
-      return parseFloat(cleaned);
+      const str = String(v).toLowerCase().replace(/\s+/g, '').replace(',', '.');
+      const isKg = /kg$/.test(str);
+      const n = parseFloat(str.replace(/kg$|g$/, ''));
+      return isKg ? n * 1000 : n;
     };
 
     // Sum of PACKAGING component weights must equal GW − NW
@@ -1362,12 +1516,10 @@ async function runPWCheck() {
     }
   }
 
-  const aiItems = await fetchPWAIItems(itemGroups);
-  renderAllPW([...issues, ...aiItems]);
-  btn.disabled = false;
+  return issues;
 }
 
-async function fetchPWAIItems(itemGroups) {
+async function fetchPWAIItems() {
   let pwText = 'PACKAGING PAPERWORK:\n\n';
   pwRows.forEach(r => {
     pwText += `Row ${r._row}: Item ${r.itemno || '?'}`;
@@ -1398,16 +1550,7 @@ General: [issue description]
 One issue per line. No bullet points, no headers, no extra formatting.` }];
 
   try {
-    const resp = await fetch('https://nohro-compliance-proxy.azurewebsites.net/api/proxy', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500,
-        messages: [{ role: 'user', content }] })
-    });
-    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
-    const data = await resp.json();
+    const data = await callAIProxy(content);
     const text = data.content?.[0]?.text || '';
     const items = [];
     text.split('\n').forEach(line => {
@@ -1417,26 +1560,22 @@ One issue per line. No bullet points, no headers, no extra formatting.` }];
       if (itemMatch) { items.push({ t: 'ai', grpKey: itemMatch[1], msg: esc(itemMatch[2]) }); return; }
       const genMatch = line.match(/^General\s*:\s*(.+)/i);
       if (genMatch) { items.push({ t: 'ai', msg: esc(genMatch[1]) }); return; }
-      if (line.length > 5) items.push({ t: 'ai', msg: esc(line) });
+      if (line.length > 5 && !AI_NO_ISSUE_RE.test(line)) items.push({ t: 'ai', msg: esc(line) });
     });
+    if (data.stop_reason === 'max_tokens') items.push({ t: 'ai', msg: '🤖 ' + s('aiTruncated') });
     return items;
   } catch(err) {
-    const networkErr = /fetch|network|failed to fetch/i.test(err.message);
-    const msg = networkErr
-      ? (lang === 'zh'
-          ? '🤖 AI检查不可用 — 无法连接AI服务（api.anthropic.com可能在此网络中受限）'
-          : '🤖 AI check unavailable — could not reach AI service (api.anthropic.com may be blocked on this network)')
-      : `🤖 AI check failed: ${esc(err.message)}`;
-    return [{ t: 'w', msg }];
+    return [aiErrorItem(err)];
   }
 }
 
-function renderAllPW(items) {
+function renderAllPW(items, opts = {}) {
   const itemNos = [...new Set(pwRows.map(r => r.itemno).filter(Boolean))];
   renderByRow(
     items,
     'pwIssueList',
     key => {
+      if (key === '_unknown') return s('unknownItem');
       const firstRow = pwRows.find(r => r.itemno === key);
       const label = firstRow?.component || '';
       return `Item ${key}${label ? '  ·  ' + label : ''}`;
@@ -1446,12 +1585,15 @@ function renderAllPW(items) {
     'pwResults'
   );
 
-  // Flip Run Check button → New Check
-  const btn = document.getElementById('pwCheckBtn');
-  const btnTxt = document.getElementById('pwBtnTxt');
-  btn.classList.add('new-check-mode');
-  btn.onclick = resetPW;
-  btnTxt.textContent = lang === 'zh' ? '🔄 Nyt tjek' : '🔄 New Check';
+  // Flip Run Check button → New Check (skipped for the "no file" error,
+  // so a subsequent upload + click doesn't wipe the freshly loaded file)
+  if (!opts.noFlip) {
+    const btn = document.getElementById('pwCheckBtn');
+    const btnTxt = document.getElementById('pwBtnTxt');
+    btn.classList.add('new-check-mode');
+    btn.onclick = resetPW;
+    btnTxt.textContent = s('newCheck');
+  }
 }
 </script>
 </body>
