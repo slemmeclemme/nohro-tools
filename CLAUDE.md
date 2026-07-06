@@ -48,6 +48,7 @@ Merged cells are expanded after XLSX parsing (`ws['!merges']`) because item-leve
 ```
 index.html        — The entire application (HTML + CSS + JS)
 xlsx.full.min.js  — Vendored SheetJS 0.18.5 (do not load from CDN)
+azure-proxy/      — Source of truth for the Azure Function AI proxy (see its README)
 CNAME             — Custom domain config for GitHub Pages
 CLAUDE.md         — This file
 ```
