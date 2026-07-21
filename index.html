@@ -275,6 +275,8 @@ const L = {
     aiRefused: 'AI check was declined by the AI service for this content — the rule-based results above are complete',
     unknownItem: '⚠️ Missing item number',
     compositeSingle: '"{comp}" is a multi-material component and cannot consist of one single material — e.g. a cable always contains both a conductor (copper) AND insulation (PVC/PE/TPE). List every material on its own row with CAS number and concentration %.',
+    bomDispimg: '{n} product image cell(s) use the WPS "DISPIMG" function — these images are INVISIBLE in Microsoft Excel (the cell only shows =DISPIMG(...)). Re-insert every product photo as a normal picture (Insert → Picture), not as a WPS embedded cell image.',
+    bomNoImages: 'No embedded product images found in the file — every product must include a product photo in the PRODUCT IMAGE column.',
     lErr: 'Errors', lWarn: 'Warnings', lOk: 'Rows',
     pwLErr: 'Errors', pwLWarn: 'Warnings', pwLOk: 'Items',
     irTitle: 'Image Review — does the photo match the BOM?',
@@ -355,6 +357,8 @@ const L = {
     aiRefused: 'AI服务拒绝检查此内容 — 以上规则检查结果完整',
     unknownItem: '⚠️ 缺少项目号',
     compositeSingle: '"{comp}"是多材料组件，不可能仅由单一材料构成 — 例如电缆必定同时包含导体（铜）和绝缘层（PVC/PE/TPE）。请将每种材料单独一行列出，注明CAS编号和浓度%。',
+    bomDispimg: '{n}个产品图片单元格使用了WPS的"DISPIMG"函数 — 这些图片在Microsoft Excel中不可见（单元格只显示=DISPIMG(...)）。请将每张产品照片以普通图片方式重新插入（插入→图片），不要使用WPS嵌入单元格图片。',
+    bomNoImages: '文件中未找到嵌入的产品图片 — 每个产品都必须在PRODUCT IMAGE列附产品照片。',
     lErr: '错误', lWarn: '警告', lOk: '行',
     pwLErr: '错误', pwLWarn: '警告', pwLOk: '项目',
     irTitle: '图片核查 — 图片与BOM是否一致？',
@@ -556,6 +560,38 @@ function renderByRow(items, listId, rowLookup, summaryIds, scrollToId) {
 let rows = [];
 let imgs = [];
 let lastDebug = null;
+let bomImgScan = null; // { dispimg, media, imgHeader } — embedded-image scan of the BOM file
+
+// An .xlsx is a zip; embedded pictures live under xl/media/. Zip entry names
+// are stored uncompressed, so a plain byte scan finds them without a zip lib.
+function countZipMedia(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 65536) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 65536, bytes.length)));
+  }
+  const names = new Set();
+  const re = /xl\/media\/[\w .-]+?\.(png|jpe?g|gif|bmp|emf|wmf|webp|tiff?)/gi;
+  let m;
+  while ((m = re.exec(s))) names.add(m[0].toLowerCase());
+  return names.size;
+}
+
+// WPS Office embeds cell pictures as =DISPIMG(...) formulas, which Microsoft
+// Excel cannot display — the reviewer sees formula text instead of a photo.
+function countDispimg(wb) {
+  let n = 0;
+  for (const sn of wb.SheetNames) {
+    const ws = wb.Sheets[sn];
+    for (const addr in ws) {
+      if (addr[0] === '!') continue;
+      const cell = ws[addr];
+      if ((cell.f && /DISPIMG\s*\(/i.test(cell.f)) ||
+          (typeof cell.v === 'string' && /^=?\s*(_xlfn\.)?DISPIMG\s*\(/i.test(cell.v))) n++;
+    }
+  }
+  return n;
+}
 
 const COL = {
   product:   ['product name','产品名称'],
@@ -671,6 +707,14 @@ function loadFile(file) {
         colList: detectedFields.join(', ') || '— none —',
         rawScanned, skipped, filtered, included: rows.length, capped,
       };
+      // Embedded-image scan: missing product photos / WPS DISPIMG cell images
+      const imgHeaderRe = /image|picture|photo|图片|照片|图像/i;
+      bomImgScan = {
+        dispimg: countDispimg(wb),
+        media: countZipMedia(e.target.result),
+        imgHeader: raw.slice(0, 25).some(r => (r || []).some(c => imgHeaderRe.test(String(c)))),
+      };
+      lastDebug.imgScan = bomImgScan;
       updateFileZone();
     } catch(err) {
       alert(s('parseFail') + '\n\n' + err);
@@ -695,12 +739,13 @@ function updateFileZone() {
       `<b>Columns (${d.colsFound}):</b> ${esc(d.colList)}<br>` +
       `<b>Rows:</b> scanned ${d.rawScanned}, skipped ${d.skipped}, filtered ${d.filtered}, ` +
       `<b style="color:${rowColor}">included ${d.included}</b>` +
-      (d.capped ? ' <b style="color:#dc2626">(capped at 5000 rows)</b>' : '');
+      (d.capped ? ' <b style="color:#dc2626">(capped at 5000 rows)</b>' : '') +
+      (d.imgScan ? `<br><b>Images:</b> ${d.imgScan.media} embedded, ${d.imgScan.dispimg} DISPIMG` : '');
   }
 }
 
 function resetBOM() {
-  rows = []; imgs = []; lastDebug = null;
+  rows = []; imgs = []; lastDebug = null; bomImgScan = null;
   const z = document.getElementById('fileZone');
   z.classList.remove('done');
   document.getElementById('fz-main').textContent = s('fz-main');
@@ -892,6 +937,15 @@ async function runCheck() {
       const matCount = grp.reduce((n, row) => n + countMaterials(row.substance || row.material), 0);
       if (matCount === 1)
         issues.push({ t: 'e', msg: s('compositeSingle', { comp }), grpKey: String(grp[0]._row), rowRef: grp[0]._row });
+    }
+
+    // Embedded product photos inside the Excel file
+    if (bomImgScan) {
+      if (bomImgScan.dispimg > 0) {
+        issues.push({ t: 'e', msg: s('bomDispimg', { n: bomImgScan.dispimg }) });
+      } else if (bomImgScan.media === 0) {
+        issues.push({ t: bomImgScan.imgHeader ? 'e' : 'w', msg: s('bomNoImages') });
+      }
     }
 
     if (!imgs.length) issues.push({ t: 'w', msg: s('noImg') });
