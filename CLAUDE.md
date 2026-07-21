@@ -41,6 +41,7 @@ Merged cells are expanded after XLSX parsing (`ws['!merges']`) because item-leve
 - **Packaging must fit in master carton** (dimension check with 0.5cm tolerance)
 - **Valid recycling codes**: PET(1), HDPE(2), PVC(3), LDPE(4), PP(5), PS(6), OTHER(7), PAP 20/21/22, NO LABEL
 - **TPR is a material family**, not a single substance — guide suppliers to list individual polymers
+- **Stainless steel needs a grade** (`SS_RE`/`SS_GRADE_RE`): "S.S"/"SS"/"S/S"/"SUS"/"stainless steel"/"不锈钢" without a grade (304/316L/430/18-8/1.43xx/…) is an ERROR — Cr/Ni content differs per grade and decides food-contact suitability and nickel release
 - **Composite components** (cable/wire/cord, zipper, PCB, motor, switch, plug, speaker, battery, LED module — `COMPOSITE_RE`) physically consist of multiple materials; a single-material declaration (e.g. cable = 100% copper) is an ERROR. The BOM AI prompt has a matching condition 4 for cases outside the list.
 - **Embedded product photos** (BOM tab): the file is scanned on load (`bomImgScan`). WPS `=DISPIMG(...)` cell images are an ERROR (invisible in Microsoft Excel — supplier must re-insert as normal pictures). Zero `xl/media/` images is an ERROR when an image/picture/图片 column header exists, otherwise a warning. `countZipMedia` byte-scans the zip for media filenames (no zip lib needed).
 

@@ -277,6 +277,7 @@ const L = {
     compositeSingle: '"{comp}" is a multi-material component and cannot consist of one single material — e.g. a cable always contains both a conductor (copper) AND insulation (PVC/PE/TPE). List every material on its own row with CAS number and concentration %.',
     bomDispimg: '{n} product image cell(s) use the WPS "DISPIMG" function — these images are INVISIBLE in Microsoft Excel (the cell only shows =DISPIMG(...)). Re-insert every product photo as a normal picture (Insert → Picture), not as a WPS embedded cell image.',
     bomNoImages: 'No embedded product images found in the file — every product must include a product photo in the PRODUCT IMAGE column.',
+    ssGrade: '"S.S" / "stainless steel" is not specific enough — state the exact grade (e.g. SS304, SS316L, SS430, 18/8). Chromium/nickel content differs between grades and determines food-contact suitability and nickel release.',
     lErr: 'Errors', lWarn: 'Warnings', lOk: 'Rows',
     pwLErr: 'Errors', pwLWarn: 'Warnings', pwLOk: 'Items',
     irTitle: 'Image Review — does the photo match the BOM?',
@@ -359,6 +360,7 @@ const L = {
     compositeSingle: '"{comp}"是多材料组件，不可能仅由单一材料构成 — 例如电缆必定同时包含导体（铜）和绝缘层（PVC/PE/TPE）。请将每种材料单独一行列出，注明CAS编号和浓度%。',
     bomDispimg: '{n}个产品图片单元格使用了WPS的"DISPIMG"函数 — 这些图片在Microsoft Excel中不可见（单元格只显示=DISPIMG(...)）。请将每张产品照片以普通图片方式重新插入（插入→图片），不要使用WPS嵌入单元格图片。',
     bomNoImages: '文件中未找到嵌入的产品图片 — 每个产品都必须在PRODUCT IMAGE列附产品照片。',
+    ssGrade: '仅写"S.S"/"不锈钢"不够具体 — 请注明确切牌号（如SS304、SS316L、SS430、18/8）。不同牌号的铬/镍含量不同，直接决定食品接触适用性和镍迁移。',
     lErr: '错误', lWarn: '警告', lOk: '行',
     pwLErr: '错误', pwLWarn: '警告', pwLOk: '项目',
     irTitle: '图片核查 — 图片与BOM是否一致？',
@@ -849,6 +851,12 @@ function parseConcField(v) {
   return { isRange: false, sum, substanceCount };
 }
 
+// Stainless steel declared without a grade ("S.S", "SUS", "不锈钢") is not
+// specific enough — chromium/nickel content differs per grade, which decides
+// food-contact suitability and nickel release.
+const SS_RE = /\b(s[.\/]?s|sus|stainless(\s*steel)?|inox)\b|不锈钢/i;
+const SS_GRADE_RE = /\b(20[01245]|30[1-9]|31[0-9]|32[19]|33[0-9]|34[0-9]|4[0-4][0-9]|63[05])\s*L?\b|\b1\.4\d{3}\b|\b18\s*[\/-]\s*(0|8|10)\b|\b17-4\b/i;
+
 // Components that physically ALWAYS consist of multiple materials —
 // a single-material declaration for these is impossible (e.g. a cable
 // is never 100% copper: it also has insulation).
@@ -890,6 +898,12 @@ async function runCheck() {
       const matConc = [row.material, row.conc, row.substance].join(' ');
       if (/\btpr\b|thermoplastic.?rubber|热塑性橡胶/i.test(matConc)) {
         issues.push({ t: 'e', msg: s('tprGuide'), grpKey: gk, rowRef: r });
+      }
+
+      // Stainless steel must state the specific grade
+      const ssText = [row.component, row.material, row.substance].join(' ');
+      if (SS_RE.test(ssText) && !SS_GRADE_RE.test(ssText)) {
+        issues.push({ t: 'e', msg: s('ssGrade'), grpKey: gk, rowRef: r });
       }
 
       if (isBlank(row.conc)) {
